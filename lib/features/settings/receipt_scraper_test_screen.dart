@@ -7,6 +7,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:http/io_client.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import '../../core/env_config.dart';
 
 class ReceiptScraperTestScreen extends StatefulWidget {
   const ReceiptScraperTestScreen({super.key});
