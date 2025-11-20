@@ -1,0 +1,61 @@
+{
+  "telebirr": [
+    {
+      "body": "You have transferred ETB 500.00 to (0912345678) John Doe on 12/10/2025 12:34:56. Your transaction number is CJ123456789. Your current E-Money Account balance is ETB 1,234.56.",
+      "expected": {
+        "amount": 500.00,
+        "merchant": "John Doe",
+        "recipient": "0912345678",
+        "balance": 1234.56,
+        "transaction_id": "123456789",
+        "timestamp": "12/10/2025 12:34:56"
+      }
+    },
+    {
+      "body": "You have paid for package ETB 200.00 to Internet Service. Your current balance is ETB 1,034.56.",
+      "expected": {
+        "amount": 200.00,
+        "merchant": "Internet Service",
+        "balance": 1034.56
+      }
+    },
+    {
+      "body": "You have paid ETB 150.00 for Mobile Data Bundle. Your current E-Money Account balance is ETB 850.00.",
+      "expected": {
+        "amount": 150.00,
+        "merchant": "Mobile Data Bundle", 
+        "balance": 850.00
+      }
+    }
+  ],
+  "CBE": [
+    {
+      "body": "Dear Abel, You have transferred ETB 100.00 to Kidus Yared on 17/10/2025 at 16:21:36 from your account 1*********8193. Your Current Balance is ETB 481.47. Thank you for Banking with CBE!",
+      "expected": {
+        "amount": 100.00,
+        "merchant": "Kidus Yared",
+        "recipient": "Kidus Yared", 
+        "balance": 481.47,
+        "timestamp": "16:21:36"
+      }
+    },
+    {
+      "body": "Dear Abel your Account 1*********8193 has been Credited with ETB 100.00 from Nathnael Adinew. on 15/10/2025 at 13:49:25 with Ref No FT2528885KX6 Your Current Balance is ETB 273.79. Thank you for Banking with CBE!",
+      "expected": {
+        "amount": 100.00,
+        "merchant": "Nathnael Adinew",
+        "balance": 273.79,
+        "transaction_id": "FT2528885KX6",
+        "timestamp": "13:49:25"
+      }
+    },
+    {
+      "body": "Dear Abel your Account 1*********8193 has been debited with ETB11.00 .Service charge of ETB10 and VAT(15%) of ETB1.50 with a total of ETB22. Your Current Balance is ETB 173.79. Thank you for Banking with CBE!",
+      "expected": {
+        "amount": 11.00,
+        "merchant": "Service Charge",
+        "balance": 173.79
+      }
+    }
+  ]
+}

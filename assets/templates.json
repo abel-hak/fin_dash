@@ -1,0 +1,78 @@
+[
+  {
+    "id": "telebirr_transfer_v3",
+    "sender": "Telebirr",
+    "locale": "en",
+    "patterns": {
+      "amount": "(?:transferred|paid)\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:to|for package)\\s+([A-Za-z][A-Za-z\\s]{2,50})(?:\\s*\\([0-9*]{8,}\\)|\\s+purchase|\\s+on)",
+      "balance": "(?:current|E-Money Account)\\s+balance\\s+is\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "transaction\\s+number\\s+is\\s+([A-Z0-9]{6,})"
+    },
+    "post": {
+      "currency": "ETB",
+      "channel": "telebirr"
+    }
+  },
+  {
+    "id": "cbe_transfer_v3",
+    "sender": "CBE",
+    "locale": "en",
+    "patterns": {
+      "amount": "(?:transfered|transferred)\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:transfered|transferred)\\s+ETB\\s*[\\d,]+(?:\\.\\d{2})?\\s+to\\s+([A-Za-z][A-Za-z\\s]{2,40})\\s+on",
+      "balance": "(?:Your\\s+)?Current\\s+Balance\\s+is\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "account_alias": "(?:from\\s+your\\s+)?account\\s+([0-9*]+)"
+    },
+    "post": {
+      "currency": "ETB",
+      "channel": "cbe"
+    }
+  },
+  {
+    "id": "cbe_debit_v3",
+    "sender": "CBE",
+    "locale": "en",
+    "patterns": {
+      "amount": "(?:debited with|has been debited with)\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "CBE",
+      "balance": "(?:Your\\s+)?Current\\s+Balance\\s+is\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "account_alias": "(?:your\\s+)?Account\\s+([0-9*]+)"
+    },
+    "post": {
+      "currency": "ETB",
+      "channel": "cbe"
+    }
+  },
+  {
+    "id": "awash_bank_v2",
+    "sender": "Awash Bank",
+    "locale": "en",
+    "patterns": {
+      "amount": "(?:debited|credited|paid|received)\\s+(?:with\\s+)?ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:to|at|from)\\s+([A-Za-z][A-Za-z\\s]{2,30})(?:\\.|,|$)",
+      "balance": "(?:New\\s+)?Balance[:\\s]+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "account_alias": "(?:A/C|Account)\\s+([0-9*]+)"
+    },
+    "post": {
+      "currency": "ETB",
+      "channel": "awash_bank"
+    }
+  },
+  {
+    "id": "mpesa_payment_v2",
+    "sender": "MPESA",
+    "locale": "en",
+    "patterns": {
+      "amount": "(?:paid|sent|received)\\s+Ksh\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:to|paid to|from)\\s+([A-Za-z][A-Za-z\\s]{2,30})",
+      "balance": "(?:New\\s+)?(?:M-PESA\\s+)?balance\\s+is\\s+Ksh\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "\\b([A-Z]{2}[0-9A-Z]{8})\\b",
+      "recipient": "(?:to|sent to)\\s+([0-9\\s+]+)"
+    },
+    "post": {
+      "currency": "KES",
+      "channel": "mpesa"
+    }
+  }
+]

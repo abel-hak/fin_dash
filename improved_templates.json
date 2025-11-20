@@ -1,0 +1,92 @@
+[
+  {
+    "id": "telebirr_transfer_v1",
+    "sender": "Telebirr",
+    "locale": "en", 
+    "patterns": {
+      "amount": "transferred ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "to\\s+\\([\\d\\*]+\\)\\s+([^\\n.]+?)(?:\\s+on|\\.|$)",
+      "recipient": "to\\s+\\(([\\d\\*]+)\\)",
+      "balance": "(?:Your current|current)(?:\\s+E-Money Account)?\\s+balance is ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "transaction number is CJ([A-Z0-9]+)",
+      "timestamp": "on (\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}:\\d{2})"
+    },
+    "post": { "currency": "ETB", "channel": "telebirr" }
+  },
+  {
+    "id": "telebirr_sms_en_v1",
+    "sender": "Telebirr",
+    "locale": "en",
+    "patterns": {
+      "amount": "ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:transferred to|paid for package)\\s+ETB\\s*[\\d,]+(?:\\.\\d{2})?\\s+to\\s+([^(\\n.]+?)(?:\\s*\\(|\\s*\\.|\\s*$)",
+      "recipient": "\\(?([\\d\\*]{9,})\\)?",
+      "balance": "(?:Your current|current)(?:\\s+E-Money Account)?\\s+balance is ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "transaction number is\\s+(?:CJ)?([A-Z0-9]+)",
+      "timestamp": "on (\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}:\\d{2})"
+    },
+    "post": { "currency": "ETB", "channel": "telebirr" }
+  },
+  {
+    "id": "telebirr_payment_v1",
+    "sender": "Telebirr",
+    "locale": "en",
+    "patterns": {
+      "amount": "paid ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "for\\s+([^.\\n]+?)(?:\\.|\\s*Your|$)",
+      "balance": "(?:Your current|current)(?:\\s+E-Money Account)?\\s+balance is ETB\\s*([\\d,]+(?:\\.\\d{2})?)"
+    },
+    "post": { "currency": "ETB", "channel": "telebirr" }
+  },
+  {
+    "id": "cbe_balance_inquiry_v1",
+    "sender": "CBE",
+    "patterns": {
+      "balance": "Your Current Balance is ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "Ref No\\s+([A-Z0-9]+)",
+      "timestamp": "(\\d{2}:\\d{2}:\\d{2})"
+    },
+    "post": { 
+      "currency": "ETB", 
+      "channel": "cbe",
+      "amount": 0.0,
+      "merchant": "Balance Inquiry"
+    }
+  },
+  {
+    "id": "cbe_sms_en_v1",
+    "sender": "CBE",
+    "patterns": {
+      "amount": "(?:withdrawn|Purchase of|paid|sent|received)\\s+ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:at|with|to|from)\\s+([^,.\\n]+?)(?:\\.|\\s*$|\\s*Bal:)",
+      "balance": "(?:Your\\s+Current\\s+|New\\s+)?Bal(?:ance)?(?:\\s+is)?:?\\s*ETB\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "(?:Ref|Reference)\\s+(?:No|Number)\\s+([A-Z0-9]+)",
+      "timestamp": "(\\d{2}:\\d{2}:\\d{2})"
+    },
+    "post": { "currency": "ETB", "channel": "cbe" }
+  },
+  {
+    "id": "awash_bank_sms_en_v1",
+    "sender": "Awash Bank",
+    "patterns": {
+      "amount": "(?:Birr|ETB)\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:to|from|at)\\s+([^,.\\n]+?)(?:\\s*on|\\.|\\s*$)",
+      "balance": "Balance:?\\s*(?:Birr|ETB)\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "Ref(?:erence)?:?\\s*([A-Z0-9]+)",
+      "timestamp": "(\\d{2}/\\d{2}/\\d{4})"
+    },
+    "post": { "currency": "ETB", "channel": "awash_bank" }
+  },
+  {
+    "id": "abyssinia_sms_en_v1",
+    "sender": "Bank of Abyssinia",
+    "patterns": {
+      "amount": "(?:Birr|ETB)\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "merchant": "(?:to|from|at)\\s+([^,.\\n]+?)(?:\\s*on|\\.|\\s*$)",
+      "balance": "Avail\\.?\\s*Bal(?:ance)?:?\\s*(?:Birr|ETB)\\s*([\\d,]+(?:\\.\\d{2})?)",
+      "transaction_id": "TXN\\s*ID:?\\s*([A-Z0-9]+)",
+      "timestamp": "(\\d{2}/\\d{2}/\\d{4}\\s+\\d{2}:\\d{2}(?::\\d{2})?)"
+    },
+    "post": { "currency": "ETB", "channel": "bank_of_abyssinia" }
+  }
+]
