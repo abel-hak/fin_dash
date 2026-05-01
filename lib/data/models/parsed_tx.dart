@@ -1,4 +1,4 @@
-enum TransactionStatus { pending, approved, synced }
+enum TransactionStatus { pending, approved, synced, ignored }
 
 class ParsedTransaction {
   final String id;
@@ -92,37 +92,45 @@ class ParsedTransaction {
   }
 
   factory ParsedTransaction.fromMap(Map<String, dynamic> map) {
+    double _toDouble(dynamic v) =>
+        v is num ? v.toDouble() : (double.tryParse('${v ?? ''}') ?? 0.0);
+    double? _toNullableDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse('$v');
+    }
+
     return ParsedTransaction(
-      id: map['id'],
-      sender: map['sender'],
-      amount: map['amount'],
-      currency: map['currency'],
-      occurredAt: map['occurred_at'],
-      merchant: map['merchant'],
-      accountAlias: map['account_alias'],
-      balance: map['balance'],
-      channel: map['channel'],
-      confidence: map['confidence'],
-      fingerprint: map['fingerprint'],
+      id: map['id'] as String,
+      sender: map['sender'] as String? ?? '',
+      amount: _toDouble(map['amount']),
+      currency: map['currency'] as String? ?? '',
+      occurredAt: map['occurred_at'] as String? ?? '',
+      merchant: map['merchant'] as String? ?? '',
+      accountAlias: map['account_alias'] as String?,
+      balance: _toNullableDouble(map['balance']),
+      channel: map['channel'] as String? ?? '',
+      confidence: _toDouble(map['confidence']).clamp(0.0, 1.0),
+      fingerprint: map['fingerprint'] as String? ?? '',
       status: TransactionStatus.values.firstWhere(
         (e) => e.toString().split('.').last == map['status'],
         orElse: () => TransactionStatus.pending,
       ),
-      createdAt: map['created_at'],
-      transactionId: map['transaction_id'],
-      timestamp: map['timestamp'],
-      recipient: map['recipient'],
-      receiptLink: map['receipt_link'],
+      createdAt: map['created_at'] as String? ?? '',
+      transactionId: map['transaction_id'] as String?,
+      timestamp: map['timestamp'] as String?,
+      recipient: map['recipient'] as String?,
+      receiptLink: map['receipt_link'] as String?,
       hasReceipt: map['has_receipt'] == 1,
-      dataSource: map['data_source'],
-      payerAccount: map['payer_account'],
-      merchantAccount: map['merchant_account'],
-      serviceCharge: map['service_charge'],
-      vat: map['vat'],
-      totalAmount: map['total_amount'],
-      paymentMethod: map['payment_method'],
-      branch: map['branch'],
-      reason: map['reason'],
+      dataSource: map['data_source'] as String?,
+      payerAccount: map['payer_account'] as String?,
+      merchantAccount: map['merchant_account'] as String?,
+      serviceCharge: _toNullableDouble(map['service_charge']),
+      vat: _toNullableDouble(map['vat']),
+      totalAmount: _toNullableDouble(map['total_amount']),
+      paymentMethod: map['payment_method'] as String?,
+      branch: map['branch'] as String?,
+      reason: map['reason'] as String?,
     );
   }
 
