@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:sms_transaction_app/data/db/database_helper.dart';
+import 'package:sms_transaction_app/core/logger.dart';
 import 'package:sms_transaction_app/data/models/parsed_tx.dart';
 import 'package:sms_transaction_app/services/providers.dart';
-import 'package:sms_transaction_app/services/sync_service.dart';
 
 class ReviewScreen extends ConsumerStatefulWidget {
   final String transactionId;
@@ -125,7 +124,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         syncSuccess = await syncService.syncTransaction(updatedTransaction);
       } catch (syncE) {
         syncError = syncE.toString();
-        print('Sync error: $syncError');
+        AppLogger.sync('review approve sync failed: $syncError', isError: true);
       }
 
       // Show success message with sync status
@@ -151,11 +150,17 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
   Future<void> _ignoreTransaction() async {
     try {
-      // Delete the transaction
+      // Mark the parsed transaction as ignored. Previously this called
+      // `deleteRawSmsEvent(_transaction.id)`, which targeted the wrong table
+      // (parsed_tx ids are not raw_sms_event ids), leaving the parsed row
+      // in place and silently corrupting the user's inbox.
       final databaseHelper = ref.read(databaseHelperProvider);
-      await databaseHelper.deleteRawSmsEvent(_transaction.id);
+      await databaseHelper.markTransactionIgnored(_transaction.id);
 
-      // Navigate back to inbox
+      ref.invalidate(pendingTransactionsProvider);
+      ref.invalidate(approvedTransactionsProvider);
+      ref.invalidate(parsedTransactionsProvider);
+
       if (mounted) {
         context.go('/inbox');
       }

@@ -10,19 +10,21 @@ class AiSmsParser {
   
   /// Initialize the AI model
   static void initialize() {
-    if (EnvConfig.geminiApiKey == 'YOUR_GEMINI_API_KEY_HERE' || 
-        EnvConfig.geminiApiKey.isEmpty) {
-      AppLogger.parser('AI_PARSER', '⚠️ Gemini API key not configured - AI parsing disabled');
+    if (!EnvConfig.hasGemini) {
+      AppLogger.parser(
+        'AI_PARSER',
+        'Gemini API key not configured - AI parsing disabled',
+      );
       return;
     }
-    
+
     if (!EnvConfig.enableAiParsing) {
       AppLogger.parser('AI_PARSER', 'AI parsing disabled in config');
       return;
     }
-    
+
     _initialized = true;
-    AppLogger.parser('AI_PARSER', '✓ Gemini AI initialized successfully (REST API)');
+    AppLogger.parser('AI_PARSER', 'Gemini AI initialized (REST API)');
   }
   
   /// Parse SMS using AI
@@ -65,17 +67,15 @@ class AiSmsParser {
         return null;
       }
       
-      AppLogger.parser('AI_PARSER', 'AI Response: $responseText');
-      
-      // Parse JSON from AI response
+      AppLogger.aiPayload('RESPONSE', responseText);
+
       final result = _parseAiResponse(responseText);
-      
+
       if (result != null) {
-        AppLogger.parser('AI_PARSER', '✓ AI parsing successful');
-        AppLogger.parser('AI_PARSER', 'Extracted: ${result.toString()}');
+        AppLogger.parser('AI_PARSER', 'AI parsing successful');
         return result;
       } else {
-        AppLogger.parser('AI_PARSER', '✗ Failed to parse AI response');
+        AppLogger.parser('AI_PARSER', 'Failed to parse AI response');
         return null;
       }
     } catch (e) {
@@ -133,41 +133,70 @@ Now extract from the SMS above:
 ''';
   }
   
-  /// Parse AI response to extract JSON
+  /// Parse AI response to extract JSON. The model may return ints, doubles,
+  /// strings (with currency symbols/commas), or `null` for numeric fields,
+  /// so coerce defensively rather than relying on `as double` casts.
   static Map<String, dynamic>? _parseAiResponse(String responseText) {
     try {
-      // Try to find JSON in the response
       String jsonStr = responseText.trim();
-      
-      // Remove markdown code blocks if present
+
       if (jsonStr.startsWith('```json')) {
         jsonStr = jsonStr.substring(7);
       } else if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.substring(3);
       }
-      
       if (jsonStr.endsWith('```')) {
         jsonStr = jsonStr.substring(0, jsonStr.length - 3);
       }
-      
       jsonStr = jsonStr.trim();
-      
-      // Parse JSON
+
       final Map<String, dynamic> parsed = jsonDecode(jsonStr);
-      
-      // Validate required fields
-      if (!parsed.containsKey('amount') || parsed['amount'] == null) {
-        AppLogger.parser('AI_PARSER', '✗ Missing amount in AI response');
+
+      // Coerce numeric fields. Required: amount.
+      final amount = _coerceDouble(parsed['amount']);
+      if (amount == null || amount.isNaN || amount.isInfinite) {
+        AppLogger.parser('AI_PARSER', 'Missing/invalid amount in AI response');
         return null;
       }
-      
-      // Set confidence to 0.9 for AI-parsed transactions
+      parsed['amount'] = amount;
+      parsed['balance'] = _coerceDouble(parsed['balance']);
+
+      // Default currency if the model omitted it.
+      final currency = parsed['currency'];
+      if (currency is! String || currency.isEmpty) {
+        parsed['currency'] = 'ETB';
+      }
+
+      // Provide a default merchant so downstream code doesn't crash.
+      final merchant = parsed['merchant'];
+      if (merchant is! String || merchant.isEmpty) {
+        parsed['merchant'] = 'Unknown';
+      }
+
+      // Confidence stays on the 0-1 scale shared by every parser strategy.
       parsed['confidence'] = 0.9;
-      
+
       return parsed;
     } catch (e) {
-      AppLogger.parser('AI_PARSER', '✗ Failed to parse JSON from AI: $e');
+      AppLogger.parser('AI_PARSER', 'Failed to parse JSON from AI: $e');
       return null;
     }
+  }
+
+  static double? _coerceDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) {
+      final d = value.toDouble();
+      if (d.isNaN || d.isInfinite) return null;
+      return d;
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty || trimmed.toLowerCase() == 'null') return null;
+      // Strip everything except digits, sign, decimal point.
+      final cleaned = trimmed.replaceAll(RegExp(r'[^\d.\-]'), '');
+      return double.tryParse(cleaned);
+    }
+    return null;
   }
 }

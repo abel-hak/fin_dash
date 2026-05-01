@@ -217,7 +217,9 @@ class SmsParser {
     );
   }
 
-  /// Create ParsedTransaction from general parser result
+  /// Create ParsedTransaction from general parser result. The AI parser may
+  /// hand us numeric values as `int` or `String`, so always coerce instead of
+  /// hard-casting (which used to crash on perfectly valid Gemini responses).
   ParsedTransactionResult _createTransactionFromGeneralParse(
     Map<String, dynamic> generalResult,
     String body,
@@ -225,10 +227,14 @@ class SmsParser {
     String sender,
     String userId,
   ) {
-    final amount = generalResult['amount'] as double;
-    final merchant = generalResult['merchant'] as String;
-    final currency = generalResult['currency'] as String;
-    final confidence = generalResult['confidence'] as double;
+    final amount = _parseDouble(generalResult['amount']) ?? 0.0;
+    final merchant =
+        (generalResult['merchant'] as String?)?.trim().isNotEmpty == true
+            ? generalResult['merchant'] as String
+            : sender;
+    final currency = (generalResult['currency'] as String?) ?? 'ETB';
+    final confidence =
+        (_parseDouble(generalResult['confidence']) ?? 0.5).clamp(0.0, 1.0);
     
     // Format the timestamp
     final formattedTimestamp = DateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(timestamp);
@@ -262,7 +268,7 @@ class SmsParser {
       occurredAt: formattedTimestamp,
       merchant: merchant,
       accountAlias: generalResult['account_alias'] as String?,
-      balance: generalResult['balance'] as double?,
+      balance: _parseDouble(generalResult['balance']),
       channel: channel,
       confidence: confidence,
       fingerprint: fingerprint,
@@ -307,7 +313,9 @@ class SmsParser {
         ? receiptData['merchant'] as String
         : smsTransaction.merchant;
     
-    // Create enhanced transaction
+    // Receipt-enhanced confidence: bumped, but kept on the 0-1 scale that the
+    // rest of the codebase (UI badges, sorting, thresholds) expects.
+    const enhancedConfidence = 0.95;
     final enhancedTransaction = smsTransaction.copyWith(
       amount: amount,
       merchant: merchant,
@@ -322,14 +330,14 @@ class SmsParser {
       paymentMethod: paymentMethod,
       branch: branch,
       reason: reason,
-      confidence: 95.0, // Higher confidence with receipt data
+      confidence: enhancedConfidence,
     );
-    
+
     AppLogger.parser('RECEIPT_MERGE', 'Enhanced transaction with receipt data');
-    
+
     return ParsedTransactionResult(
       transaction: enhancedTransaction,
-      confidence: 95.0,
+      confidence: enhancedConfidence,
       matchedTemplateId: smsResult.matchedTemplateId,
     );
   }

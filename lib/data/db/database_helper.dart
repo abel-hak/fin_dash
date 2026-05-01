@@ -32,7 +32,7 @@ class DatabaseHelper {
     final path = join(documentsDirectory.path, 'sms_transactions.db');
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -40,13 +40,11 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Add new columns to parsed_tx table
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN transaction_id TEXT NULL');
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN timestamp TEXT NULL');
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN recipient TEXT NULL');
     }
     if (oldVersion < 3) {
-      // Add budgets table
       await db.execute('''
         CREATE TABLE budgets(
           id TEXT PRIMARY KEY,
@@ -60,8 +58,6 @@ class DatabaseHelper {
           created_at TEXT NOT NULL
         )
       ''');
-      
-      // Add goals table
       await db.execute('''
         CREATE TABLE goals(
           id TEXT PRIMARY KEY,
@@ -77,7 +73,6 @@ class DatabaseHelper {
       ''');
     }
     if (oldVersion < 4) {
-      // Add receipt-related columns to parsed_tx table
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN receipt_link TEXT NULL');
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN has_receipt INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN data_source TEXT NULL');
@@ -90,13 +85,61 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN branch TEXT NULL');
     }
     if (oldVersion < 5) {
-      // Add reason/description column to parsed_tx table
       await db.execute('ALTER TABLE parsed_tx ADD COLUMN reason TEXT NULL');
+    }
+    if (oldVersion < 6) {
+      // v6:
+      // 1. Update CHECK constraint to allow `ignored` status (requires
+      //    table-rebuild; SQLite cannot ALTER constraints in place).
+      // 2. Dedup any rows that share a fingerprint, then enforce uniqueness
+      //    via a UNIQUE INDEX so concurrent inserts can no longer race.
+      // 3. Add helpful indexes for the most common queries.
+      await db.execute('PRAGMA foreign_keys=OFF');
+      await db.transaction((txn) async {
+        await txn.execute('''
+          CREATE TABLE parsed_tx_new(
+            id TEXT PRIMARY KEY,
+            sender TEXT,
+            amount REAL,
+            currency TEXT,
+            occurred_at TEXT,
+            merchant TEXT,
+            account_alias TEXT NULL,
+            balance REAL NULL,
+            channel TEXT,
+            confidence REAL,
+            fingerprint TEXT,
+            status TEXT CHECK(status IN ('pending','approved','synced','ignored')),
+            created_at TEXT,
+            transaction_id TEXT NULL,
+            timestamp TEXT NULL,
+            recipient TEXT NULL,
+            receipt_link TEXT NULL,
+            has_receipt INTEGER DEFAULT 0,
+            data_source TEXT NULL,
+            payer_account TEXT NULL,
+            merchant_account TEXT NULL,
+            service_charge REAL NULL,
+            vat REAL NULL,
+            total_amount REAL NULL,
+            payment_method TEXT NULL,
+            branch TEXT NULL,
+            reason TEXT NULL
+          )
+        ''');
+        await txn.execute('''
+          INSERT INTO parsed_tx_new SELECT * FROM parsed_tx
+          WHERE rowid IN (SELECT MIN(rowid) FROM parsed_tx GROUP BY fingerprint)
+        ''');
+        await txn.execute('DROP TABLE parsed_tx');
+        await txn.execute('ALTER TABLE parsed_tx_new RENAME TO parsed_tx');
+      });
+      await db.execute('PRAGMA foreign_keys=ON');
+      await _createParsedTxIndexes(db);
     }
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Create raw_sms_event table
     await db.execute('''
       CREATE TABLE raw_sms_event(
         id TEXT PRIMARY KEY,
@@ -108,7 +151,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Create parsed_tx table
     await db.execute('''
       CREATE TABLE parsed_tx(
         id TEXT PRIMARY KEY,
@@ -122,7 +164,7 @@ class DatabaseHelper {
         channel TEXT,
         confidence REAL,
         fingerprint TEXT,
-        status TEXT CHECK(status IN ('pending','approved','synced')),
+        status TEXT CHECK(status IN ('pending','approved','synced','ignored')),
         created_at TEXT,
         transaction_id TEXT NULL,
         timestamp TEXT NULL,
@@ -140,6 +182,48 @@ class DatabaseHelper {
         reason TEXT NULL
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE budgets(
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        limit_amount REAL NOT NULL,
+        period TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE goals(
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        description TEXT,
+        target_amount REAL NOT NULL,
+        current_amount REAL NOT NULL DEFAULT 0,
+        deadline TEXT NOT NULL,
+        icon_name TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await _createParsedTxIndexes(db);
+  }
+
+  Future<void> _createParsedTxIndexes(Database db) async {
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_parsed_tx_fingerprint ON parsed_tx(fingerprint)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_parsed_tx_status_occurred ON parsed_tx(status, occurred_at DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_parsed_tx_sender ON parsed_tx(sender)',
+    );
   }
 
   // Raw SMS Event methods
@@ -180,7 +264,27 @@ class DatabaseHelper {
   // Parsed Transaction methods
   Future<int> insertParsedTransaction(ParsedTransaction transaction) async {
     final db = await database;
-    return await db.insert('parsed_tx', transaction.toMap());
+    // ConflictAlgorithm.ignore swallows the UNIQUE(fingerprint) violation so
+    // concurrent SMS handlers can no longer race past `transactionExists`.
+    return await db.insert(
+      'parsed_tx',
+      transaction.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  /// Soft-ignore a parsed transaction by flipping its status. Used by the
+  /// review screen instead of physically deleting the row, so the dedup
+  /// fingerprint still prevents the same SMS from being re-imported.
+  Future<int> markTransactionIgnored(String id) async {
+    return await updateTransactionStatus(id, TransactionStatus.ignored);
+  }
+
+  /// Hard-delete a parsed transaction by id. Prefer `markTransactionIgnored`
+  /// for user-driven dismiss flows.
+  Future<int> deleteParsedTransaction(String id) async {
+    final db = await database;
+    return await db.delete('parsed_tx', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<List<ParsedTransaction>> getParsedTransactions({
