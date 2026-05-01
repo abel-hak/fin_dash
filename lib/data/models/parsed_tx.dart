@@ -92,25 +92,17 @@ class ParsedTransaction {
   }
 
   factory ParsedTransaction.fromMap(Map<String, dynamic> map) {
-    double _toDouble(dynamic v) =>
-        v is num ? v.toDouble() : (double.tryParse('${v ?? ''}') ?? 0.0);
-    double? _toNullableDouble(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      return double.tryParse('$v');
-    }
-
     return ParsedTransaction(
       id: map['id'] as String,
       sender: map['sender'] as String? ?? '',
-      amount: _toDouble(map['amount']),
+      amount: _coerceDouble(map['amount']),
       currency: map['currency'] as String? ?? '',
       occurredAt: map['occurred_at'] as String? ?? '',
       merchant: map['merchant'] as String? ?? '',
       accountAlias: map['account_alias'] as String?,
-      balance: _toNullableDouble(map['balance']),
+      balance: _coerceNullableDouble(map['balance']),
       channel: map['channel'] as String? ?? '',
-      confidence: _toDouble(map['confidence']).clamp(0.0, 1.0),
+      confidence: _coerceDouble(map['confidence']).clamp(0.0, 1.0),
       fingerprint: map['fingerprint'] as String? ?? '',
       status: TransactionStatus.values.firstWhere(
         (e) => e.toString().split('.').last == map['status'],
@@ -125,13 +117,22 @@ class ParsedTransaction {
       dataSource: map['data_source'] as String?,
       payerAccount: map['payer_account'] as String?,
       merchantAccount: map['merchant_account'] as String?,
-      serviceCharge: _toNullableDouble(map['service_charge']),
-      vat: _toNullableDouble(map['vat']),
-      totalAmount: _toNullableDouble(map['total_amount']),
+      serviceCharge: _coerceNullableDouble(map['service_charge']),
+      vat: _coerceNullableDouble(map['vat']),
+      totalAmount: _coerceNullableDouble(map['total_amount']),
       paymentMethod: map['payment_method'] as String?,
       branch: map['branch'] as String?,
       reason: map['reason'] as String?,
     );
+  }
+
+  static double _coerceDouble(dynamic v) =>
+      v is num ? v.toDouble() : (double.tryParse('${v ?? ''}') ?? 0.0);
+
+  static double? _coerceNullableDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse('$v');
   }
 
   ParsedTransaction copyWith({

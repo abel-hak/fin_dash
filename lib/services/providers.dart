@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:sms_transaction_app/core/env_config.dart';
 import 'package:sms_transaction_app/data/db/database_helper.dart';
 import 'package:sms_transaction_app/data/models/parsed_tx.dart';
 import 'package:sms_transaction_app/data/models/account.dart';
@@ -115,28 +114,55 @@ final smsServiceProvider = Provider<SmsService>((ref) {
   final smsParser = ref.watch(smsParserProvider);
   final authService = ref.watch(authServiceProvider);
   final templateService = ref.watch(templateServiceProvider);
+  final preferencesService = ref.watch(preferencesServiceProvider);
 
-  return SmsService(
+  final service = SmsService(
     databaseHelper: databaseHelper,
     smsParser: smsParser,
     authService: authService,
     templateService: templateService,
+    preferencesService: preferencesService,
+    onTransactionAdded: () {
+      // Bump the refresh trigger so any provider watching it re-fetches.
+      ref.read(transactionRefreshProvider.notifier).state++;
+      ref.invalidate(parsedTransactionsProvider);
+      ref.invalidate(pendingTransactionsProvider);
+      ref.invalidate(approvedTransactionsProvider);
+      ref.invalidate(syncedTransactionsProvider);
+    },
   );
+
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 // Sync service provider
 final syncServiceProvider = Provider<SyncService>((ref) {
   final databaseHelper = ref.watch(databaseHelperProvider);
-  final authService = ref.watch(authServiceProvider);
 
-  return SyncService(
-    databaseHelper: databaseHelper,
-    apiUrl: '${EnvConfig.apiUrl}/transactions',
-    getAuthToken: () {
-      // Note: This is a synchronous wrapper for the async getAuthToken
-      // In a real app, you might want to cache the token or use a different approach
-      return authService.getCurrentToken() ?? '';
+  final service = SyncService(databaseHelper: databaseHelper);
+  ref.onDispose(service.stopSync);
+  return service;
+});
+
+/// Side-effect provider that ties the sync lifecycle to auth state. Read once
+/// at app start (e.g. from the root widget) and Riverpod will keep the
+/// listener alive for the rest of the app's lifetime, starting periodic sync
+/// after login and stopping it on logout.
+final syncLifecycleProvider = Provider<void>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  ref.listen<AsyncValue<AuthState>>(
+    authStateProvider,
+    (previous, next) {
+      next.whenData((authState) {
+        if (authState.session != null) {
+          syncService.startSync();
+        } else {
+          syncService.stopSync();
+        }
+      });
     },
+    fireImmediately: true,
   );
 });
 
@@ -181,6 +207,7 @@ final approvedTransactionsProvider = FutureProvider<List<ParsedTransaction>>((
 final syncedTransactionsProvider = FutureProvider<List<ParsedTransaction>>((
   ref,
 ) async {
+  ref.watch(transactionRefreshProvider);
   final databaseHelper = ref.watch(databaseHelperProvider);
   return await databaseHelper.getParsedTransactions(
     status: TransactionStatus.synced,

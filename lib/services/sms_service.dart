@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sms_transaction_app/core/logger.dart';
 import 'package:sms_transaction_app/data/db/database_helper.dart';
@@ -10,38 +8,47 @@ import 'package:sms_transaction_app/domain/parser/sms_parser.dart';
 import 'package:sms_transaction_app/services/auth_service.dart';
 import 'package:sms_transaction_app/services/template_service.dart';
 import 'package:sms_transaction_app/services/preferences_service.dart';
-import 'package:sms_transaction_app/services/providers.dart';
 
 class SmsService {
-  static const EventChannel _smsEventChannel = EventChannel('com.example.sms_transaction_app/sms_events');
-  
+  static const EventChannel _smsEventChannel =
+      EventChannel('com.example.sms_transaction_app/sms_events');
+
   final DatabaseHelper _databaseHelper;
   final SmsParser _smsParser;
   final AuthService _authService;
   final TemplateService _templateService;
-  final ProviderContainer? _providerContainer;
+  final PreferencesService _preferencesService;
+  // Riverpod-friendly hook the provider layer can wire to invalidate the
+  // transaction lists after each successful parse. Replaces the previous
+  // ProviderContainer-based design which was never wired by the provider
+  // (the container was always null in production).
+  final void Function()? _onTransactionAdded;
   final _uuid = const Uuid();
-  
-  StreamSubscription? _smsSubscription;
-  final _trustedSendersController = StreamController<List<String>>.broadcast();
-  
-  // List of trusted senders that the user has approved
+
+  StreamSubscription<dynamic>? _smsSubscription;
+  final _trustedSendersController =
+      StreamController<List<String>>.broadcast();
+  // Serializes incoming-SMS handling so concurrent broadcasts can't race
+  // between `transactionExists` and `insertParsedTransaction`.
+  Future<void> _processingTail = Future<void>.value();
+
   List<String> _trustedSenders = [];
-  
-  // Stream of trusted senders that UI can listen to
+
   Stream<List<String>> get trustedSenders => _trustedSendersController.stream;
-  
+
   SmsService({
     required DatabaseHelper databaseHelper,
     required SmsParser smsParser,
     required AuthService authService,
     required TemplateService templateService,
-    ProviderContainer? providerContainer,
-  }) : _databaseHelper = databaseHelper,
-       _smsParser = smsParser,
-       _authService = authService,
-       _templateService = templateService,
-       _providerContainer = providerContainer;
+    required PreferencesService preferencesService,
+    void Function()? onTransactionAdded,
+  })  : _databaseHelper = databaseHelper,
+        _smsParser = smsParser,
+        _authService = authService,
+        _templateService = templateService,
+        _preferencesService = preferencesService,
+        _onTransactionAdded = onTransactionAdded;
   
   // Initialize the service
   Future<void> initialize() async {
@@ -56,11 +63,21 @@ class SmsService {
   void _startListening() {
     _smsSubscription = _smsEventChannel
         .receiveBroadcastStream()
-        .listen(_handleIncomingSms, onError: (error) {
+        .listen(_enqueueIncomingSms, onError: (error) {
       AppLogger.error('Error from SMS event channel', error);
     });
   }
-  
+
+  /// Funnels every event through a serial queue so two SMS arriving in the
+  /// same tick can't race past `transactionExists` and double-insert.
+  void _enqueueIncomingSms(dynamic event) {
+    _processingTail = _processingTail
+        .then((_) => _handleIncomingSms(event))
+        .catchError((Object e, StackTrace st) {
+      AppLogger.error('SMS handler crashed', e, st);
+    });
+  }
+
   // Handle incoming SMS
   Future<void> _handleIncomingSms(dynamic event) async {
     try {
@@ -68,8 +85,8 @@ class SmsService {
       
       final String sender = smsData['sender'] ?? 'Unknown';
       final String body = smsData['body'] ?? '';
-      final String timestampStr = smsData['timestamp'] ?? '';
-      final int timestampMillis = smsData['timestampMillis'] ?? DateTime.now().millisecondsSinceEpoch;
+      final int timestampMillis = smsData['timestampMillis'] ??
+          DateTime.now().millisecondsSinceEpoch;
       
       // Check if this sender is in our trusted list
       if (!_isTrustedSender(sender)) {
@@ -116,9 +133,9 @@ class SmsService {
             rawSms.copyWith(handled: 1),
           );
           
-          // Trigger UI refresh
-          _triggerUIRefresh();
-          
+          // Notify provider layer so the inbox/transaction lists refresh.
+          _onTransactionAdded?.call();
+
           AppLogger.sms('PARSED', sender, 'Transaction: ${parseResult.transaction.amount} ${parseResult.transaction.currency}');
         } else {
           AppLogger.sms('DUPLICATE', sender, 'Transaction already exists');
@@ -141,44 +158,37 @@ class SmsService {
   // Load trusted senders from persistent storage
   Future<void> _loadTrustedSenders() async {
     try {
-      // First try to get all available senders from template registry
       final templates = await _templateService.getTemplates();
       final availableSenders = templates.getAllSenders();
-      
-      // Try to load user preferences
-      final preferencesService = PreferencesService();
-      final savedSenders = await preferencesService.getTrustedSenders();
-      
-      // If user has saved preferences, use those; otherwise trust all available senders
+
+      final savedSenders = await _preferencesService.getTrustedSenders();
+
       if (savedSenders.isNotEmpty) {
         _trustedSenders = savedSenders;
-        AppLogger.info('Loaded ${savedSenders.length} trusted senders from preferences');
+        AppLogger.info(
+          'Loaded ${savedSenders.length} trusted senders from preferences',
+        );
       } else {
-        // First time - trust all available senders by default
         _trustedSenders = availableSenders;
-        await preferencesService.saveTrustedSenders(availableSenders);
-        AppLogger.info('Initialized trusted senders with ${availableSenders.length} default senders');
+        await _preferencesService.saveTrustedSenders(availableSenders);
+        AppLogger.info(
+          'Initialized trusted senders with ${availableSenders.length} default senders',
+        );
       }
-      
-      // Notify listeners
+
       _trustedSendersController.add(_trustedSenders);
     } catch (e) {
       AppLogger.error('Error loading trusted senders', e);
       _trustedSenders = [];
     }
   }
-  
+
   // Update trusted senders
   Future<void> updateTrustedSenders(List<String> senders) async {
     try {
       _trustedSenders = senders;
-      
-      // Save to persistent storage
-      final preferencesService = PreferencesService();
-      await preferencesService.saveTrustedSenders(senders);
+      await _preferencesService.saveTrustedSenders(senders);
       AppLogger.info('Updated trusted senders: ${senders.length} senders');
-      
-      // Notify listeners
       _trustedSendersController.add(_trustedSenders);
     } catch (e) {
       AppLogger.error('Error updating trusted senders', e);
@@ -222,21 +232,6 @@ class SmsService {
     } catch (e) {
       AppLogger.error('Error manually parsing SMS', e);
       return false;
-    }
-  }
-  
-  // Trigger UI refresh when new transaction is added
-  void _triggerUIRefresh() {
-    if (_providerContainer != null) {
-      try {
-        // We need to import the provider from providers.dart
-        // For now, let's use a simple approach - invalidate the providers directly
-        _providerContainer!.invalidate(parsedTransactionsProvider);
-        _providerContainer!.invalidate(pendingTransactionsProvider);
-        _providerContainer!.invalidate(approvedTransactionsProvider);
-      } catch (e) {
-        AppLogger.error('Error triggering UI refresh', e);
-      }
     }
   }
   

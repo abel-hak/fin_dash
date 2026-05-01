@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:html/parser.dart' as html_parser;
-import 'package:http/io_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:convert';
@@ -8,9 +6,18 @@ import 'package:sms_transaction_app/core/logger.dart';
 import 'package:sms_transaction_app/core/env_config.dart';
 
 class ReceiptScraperService {
-  // Extract receipt link from SMS text
+  /// Hosts we are willing to fetch receipts from. Anything else (including
+  /// generic URLs in SMS bodies) is rejected to prevent the parser from
+  /// being weaponized into an HTTP fetch primitive driven by SMS senders.
+  static const Set<String> _allowedHosts = {
+    'transactioninfo.ethiotelecom.et',
+    'apps.cbe.com.et',
+  };
+
+  /// Extract a *trusted* receipt link from SMS text. Returns null for any
+  /// URL whose host isn't in the allowlist; callers should not fall back to
+  /// fetching arbitrary URLs.
   static Map<String, String>? extractReceiptLink(String smsBody) {
-    // Telebirr pattern
     final telebirrPattern = RegExp(
       r'https://transactioninfo\.ethiotelecom\.et/receipt/[A-Z0-9]+',
       caseSensitive: false,
@@ -24,7 +31,6 @@ class ReceiptScraperService {
       };
     }
 
-    // CBE pattern
     final cbePattern = RegExp(
       r'https://apps\.cbe\.com\.et:\d+/\?id=[A-Z0-9]+',
       caseSensitive: false,
@@ -38,47 +44,38 @@ class ReceiptScraperService {
       };
     }
 
-    // Generic URL pattern (fallback)
-    final genericPattern = RegExp(r'https?://[^\s]+');
-    final genericMatch = genericPattern.firstMatch(smsBody);
-    if (genericMatch != null) {
-      return {
-        'url': genericMatch.group(0)!,
-        'bank': 'Unknown',
-        'type': 'unknown',
-      };
-    }
-
     return null;
   }
 
-  // Create HTTP client that bypasses SSL verification (for testing)
-  static http.Client _createHttpClient() {
-    final httpClient = HttpClient();
-    httpClient.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-    httpClient.connectionTimeout = const Duration(seconds: 30);
-    return IOClient(httpClient);
-  }
+  static bool _isAllowed(Uri uri) =>
+      uri.scheme == 'https' && _allowedHosts.contains(uri.host);
 
-  // Scrape receipt and return structured data
+  /// Scrape receipt and return structured data. The host must be on the
+  /// allowlist; certificates must be valid (the previous implementation
+  /// disabled TLS verification, which is unsafe in production).
   static Future<Map<String, dynamic>?> scrapeReceipt(String url) async {
-    http.Client? client;
+    final client = http.Client();
     try {
-      AppLogger.parser('RECEIPT', 'Starting receipt scraping: $url');
-      
-      client = _createHttpClient();
+      final uri = Uri.parse(url);
+      if (!_isAllowed(uri)) {
+        AppLogger.parser('RECEIPT', 'Rejected non-allowlisted host: ${uri.host}');
+        return null;
+      }
+      AppLogger.parser('RECEIPT', 'Scraping ${uri.host}...');
 
       final response = await client.get(
-        Uri.parse(url),
+        uri,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
         },
       ).timeout(
-        const Duration(seconds: 90),
+        const Duration(seconds: 30),
         onTimeout: () {
-          throw Exception('Receipt scraping timeout after 90 seconds');
+          throw Exception('Receipt scraping timeout after 30 seconds');
         },
       );
 
@@ -87,20 +84,20 @@ class ReceiptScraperService {
       }
 
       final contentType = response.headers['content-type'] ?? '';
-      
-      // Check if PDF
-      if (contentType.contains('pdf') || response.bodyBytes[0] == 0x25) {
-        AppLogger.parser('RECEIPT', 'Detected PDF receipt, extracting text...');
+      final looksLikePdf = contentType.contains('pdf') ||
+          (response.bodyBytes.isNotEmpty && response.bodyBytes[0] == 0x25);
+
+      if (looksLikePdf) {
+        AppLogger.parser('RECEIPT', 'PDF receipt detected; extracting text...');
         return await _scrapePdfReceipt(response.bodyBytes);
-      } else {
-        AppLogger.parser('RECEIPT', 'Detected HTML receipt, parsing...');
-        return _scrapeHtmlReceipt(response.body);
       }
+      AppLogger.parser('RECEIPT', 'HTML receipt detected; parsing...');
+      return _scrapeHtmlReceipt(response.body);
     } catch (e) {
       AppLogger.parser('RECEIPT', 'Receipt scraping failed: $e');
       return null;
     } finally {
-      client?.close();
+      client.close();
     }
   }
 
