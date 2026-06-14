@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
 import 'package:sms_transaction_app/data/models/budget.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
 class EditBudgetSheet extends ConsumerStatefulWidget {
   final Budget budget;
-  
+
   const EditBudgetSheet({super.key, required this.budget});
 
   @override
@@ -17,10 +17,10 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _limitController;
-  
+
   late String _selectedCategory;
   late String _selectedPeriod;
-  
+
   final List<String> _categories = [
     'Food & Dining',
     'Transportation',
@@ -31,7 +31,7 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
     'Transfer',
     'Other',
   ];
-  
+
   final List<String> _periods = ['Weekly', 'Monthly', 'Yearly'];
 
   @override
@@ -53,7 +53,7 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
   Future<void> _updateBudget() async {
     if (_formKey.currentState!.validate()) {
       final db = ref.read(databaseHelperProvider);
-      
+
       // Update budget in database
       final updatedBudget = {
         'name': _nameController.text,
@@ -64,12 +64,12 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
         'end_date': widget.budget.endDate.toIso8601String(),
         'is_active': widget.budget.isActive ? 1 : 0,
       };
-      
+
       await db.updateBudget(widget.budget.id, updatedBudget);
-      
+
       // Refresh budgets provider
       ref.invalidate(budgetsProvider);
-      
+
       if (mounted) {
         Navigator.pop(context, true);
       }
@@ -78,16 +78,20 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final t = context.theming;
+
     return Container(
+      width: double.infinity,
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Form(
           key: _formKey,
           child: Column(
@@ -98,22 +102,18 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.m),
                     decoration: BoxDecoration(
-                      color: Colors.cyan.shade50,
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(AppRadii.m),
                     ),
-                    child: const Icon(Icons.edit, color: Colors.cyan),
+                    child: const Icon(Icons.edit, color: AppColors.accent),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                  const SizedBox(width: AppSpacing.m),
+                  Expanded(
                     child: Text(
                       'Edit Budget',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
                   IconButton(
@@ -122,27 +122,18 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              
+              const SizedBox(height: AppSpacing.xxl),
+
               // Budget Name
-              const Text(
+              Text(
                 'Budget Name',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               TextFormField(
                 controller: _nameController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'e.g., Monthly Food Budget',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -151,27 +142,16 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: AppSpacing.l),
+
               // Category
-              const Text(
+              Text(
                 'Category',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
                 items: _categories.map((category) {
                   return DropdownMenuItem(
                     value: category,
@@ -184,29 +164,20 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
                   });
                 },
               ),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: AppSpacing.l),
+
               // Budget Limit
-              const Text(
+              Text(
                 'Budget Limit',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               TextFormField(
                 controller: _limitController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: '0',
                   prefixText: 'ETB ',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -218,27 +189,16 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: AppSpacing.l),
+
               // Period
-              const Text(
+              Text(
                 'Period',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               DropdownButtonFormField<String>(
                 value: _selectedPeriod,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
                 items: _periods.map((period) {
                   return DropdownMenuItem(
                     value: period,
@@ -251,20 +211,15 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
                   });
                 },
               ),
-              const SizedBox(height: 24),
-              
+              const SizedBox(height: AppSpacing.xxl),
+
               // Update Button
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _updateBudget,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyan,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
                   ),
                   child: const Text(
                     'Update Budget',
@@ -275,7 +230,7 @@ class _EditBudgetSheetState extends ConsumerState<EditBudgetSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
             ],
           ),
         ),

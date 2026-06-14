@@ -1,124 +1,120 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
+import 'package:sms_transaction_app/data/models/goal.dart';
+import 'package:sms_transaction_app/features/shell/shell_navigation.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
+/// Savings goals card — top three goals with token-driven progress bars.
 class SavingsGoalsWidget extends ConsumerWidget {
   const SavingsGoalsWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goalsAsync = ref.watch(goalsProvider);
-    
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Savings Goals',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          SectionHeader(
+            title: 'Savings Goals',
+            actionLabel: 'See all',
+            onAction: () => context.goShellRoute('/goals'),
           ),
-          const SizedBox(height: 16),
-          goalsAsync.when(
-            data: (goals) {
-              if (goals.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No goals yet. Create one!',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                );
-              }
-              
-              // Show top 3 goals
-              final topGoals = goals.take(3).toList();
-              return Column(
-                children: topGoals.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final goal = entry.value;
-                  
-                  final color = goal.percentage >= 80 
-                      ? Colors.green 
-                      : goal.percentage >= 50 
-                          ? Colors.cyan 
-                          : Colors.purple;
-                  
-                  return Column(
-                    children: [
-                      if (index > 0) const SizedBox(height: 12),
-                      _buildGoalItem(
-                        title: goal.name,
-                        progress: goal.percentage / 100,
-                        color: color,
-                      ),
-                    ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.l,
+              AppSpacing.s,
+              AppSpacing.l,
+              AppSpacing.l,
+            ),
+            child: goalsAsync.when(
+              data: (goals) {
+                if (goals.isEmpty) {
+                  return Text(
+                    'No goals yet. Create one to start saving.',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   );
-                }).toList(),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(
-              child: Text('Error loading goals', style: TextStyle(color: Colors.red)),
+                }
+                final top = goals.take(3).toList();
+                return Column(
+                  children: [
+                    for (var i = 0; i < top.length; i++) ...[
+                      if (i > 0) const SizedBox(height: AppSpacing.m),
+                      _GoalRow(goal: top[i]),
+                    ],
+                  ],
+                );
+              },
+              loading: () => const Column(
+                children: [
+                  SkeletonBox(height: 32),
+                  SizedBox(height: AppSpacing.m),
+                  SkeletonBox(height: 32),
+                ],
+              ),
+              error: (_, __) => Text(
+                'Error loading goals',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: AppColors.danger),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildGoalItem({
-    required String title,
-    required double progress,
-    required Color color,
-  }) {
+class _GoalRow extends StatelessWidget {
+  const _GoalRow({required this.goal});
+
+  final Goal goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final t = context.theming;
+
+    final color = goal.percentage >= 80
+        ? AppColors.accent
+        : goal.percentage >= 50
+            ? AppColors.info
+            : AppColors.violet;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          title,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
+          goal.name,
+          style: theme.textTheme.titleSmall,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: AppSpacing.s),
         Row(
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(AppRadii.xs),
                 child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.grey.shade200,
+                  value: (goal.percentage / 100).clamp(0.0, 1.0),
+                  backgroundColor: t.surfaceElevated,
                   valueColor: AlwaysStoppedAnimation<Color>(color),
                   minHeight: 6,
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.s),
             Text(
-              '${(progress * 100).toInt()}%',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
-              ),
+              '${goal.percentageInt}%',
+              style: theme.textTheme.labelMedium?.copyWith(color: color),
             ),
           ],
         ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import 'package:sms_transaction_app/services/providers.dart';
-import 'package:sms_transaction_app/services/sms_service.dart';
 
 class ManualEntryScreen extends ConsumerStatefulWidget {
   const ManualEntryScreen({Key? key}) : super(key: key);
@@ -82,86 +83,71 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.theming;
+    final theme = Theme.of(context);
+
     return Scaffold(
+      backgroundColor: t.canvas,
       appBar: AppBar(
         title: const Text('Paste SMS'),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/inbox'),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.l),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Info card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              AppCard(
+                color: AppColors.infoSoft,
+                borderColor: AppColors.info.withValues(alpha: 0.3),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.info_outline,
-                          color: Colors.blue[700],
+                          color: AppColors.info,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpacing.s),
                         Text(
                           'Manual SMS Entry',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue[700],
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: AppColors.info,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
+                    const SizedBox(height: AppSpacing.s),
+                    Text(
                       'Copy and paste the full SMS from your bank or mobile money provider. '
                       'We\'ll try to extract the transaction details automatically.',
-                      style: TextStyle(
-                        fontSize: 14,
-                      ),
+                      style: theme.textTheme.bodyMedium,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
 
               // Sender field
-              const Text(
+              Text(
                 'SMS Sender',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: theme.textTheme.titleSmall,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               DropdownButtonFormField<String>(
                 value: _senderController.text.isEmpty
                     ? null
                     : _senderController.text,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Select or enter sender',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
                 ),
                 items: _senderSuggestions.map((sender) {
                   return DropdownMenuItem<String>(
@@ -181,26 +167,19 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.l),
 
               // SMS Body field
-              const Text(
+              Text(
                 'SMS Body',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: theme.textTheme.titleSmall,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               TextFormField(
                 controller: _bodyController,
                 maxLines: 8,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Paste the full SMS message here...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -212,28 +191,28 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
 
               // Error message
               if (_errorMessage != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.m),
                   decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.dangerSoft,
+                    borderRadius: BorderRadius.circular(AppRadii.s),
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.error_outline,
-                        color: Colors.red[700],
+                        color: AppColors.danger,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpacing.s),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: TextStyle(
-                            color: Colors.red[700],
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.danger,
                           ),
                         ),
                       ),
@@ -244,23 +223,23 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
               // Success message
               if (_successMessage != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.m),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.accentSoft,
+                    borderRadius: BorderRadius.circular(AppRadii.s),
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.check_circle_outline,
-                        color: Colors.green[700],
+                        color: AppColors.success,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpacing.s),
                       Expanded(
                         child: Text(
                           _successMessage!,
-                          style: TextStyle(
-                            color: Colors.green[700],
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.success,
                           ),
                         ),
                       ),
@@ -268,21 +247,13 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
                   ),
                 ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
 
               // Process button
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _isProcessing ? null : _processSms,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0277BD),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
                   child: _isProcessing
                       ? const SizedBox(
                           height: 20,
@@ -290,27 +261,19 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                                AlwaysStoppedAnimation<Color>(AppColors.textOnAccent),
                           ),
                         )
                       : const Text('Process SMS'),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.l),
 
               // View Transactions button
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () => context.go('/inbox'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0277BD),
-                    side: const BorderSide(color: Color(0xFF0277BD)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
                   child: const Text('View Transactions'),
                 ),
               ),

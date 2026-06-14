@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sms_transaction_app/services/permissions_service.dart';
-import 'package:sms_transaction_app/services/preferences_service.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
+import 'package:sms_transaction_app/features/auth/widgets/auth_layout.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
 class ConsentScreen extends ConsumerStatefulWidget {
-  const ConsentScreen({Key? key}) : super(key: key);
+  const ConsentScreen({super.key});
 
   @override
   ConsumerState<ConsentScreen> createState() => _ConsentScreenState();
@@ -14,60 +15,46 @@ class ConsentScreen extends ConsumerStatefulWidget {
 
 class _ConsentScreenState extends ConsumerState<ConsentScreen> {
   bool _isLoading = false;
-  
-  // Toggle values for trusted senders
+
   bool _telebirrEnabled = true;
   bool _cbeEnabled = true;
   bool _awashEnabled = false;
   bool _bankOfAbyssiniaEnabled = false;
 
   Future<void> _requestSmsPermission() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final permissionsService = ref.read(permissionsServiceProvider);
       final granted = await permissionsService.requestSmsPermission();
 
       if (granted) {
-        // Save trusted senders to preferences
         final preferencesService = ref.read(preferencesServiceProvider);
         final trustedSenders = <String>[];
-        
+
         if (_telebirrEnabled) trustedSenders.add('Telebirr');
         if (_cbeEnabled) trustedSenders.add('CBE');
         if (_awashEnabled) trustedSenders.add('Awash Bank');
-        if (_bankOfAbyssiniaEnabled) trustedSenders.add('Bank of Abyssinia');
-        
+        if (_bankOfAbyssiniaEnabled) {
+          trustedSenders.add('Bank of Abyssinia');
+        }
+
         await preferencesService.saveTrustedSenders(trustedSenders);
 
-        // Navigate to inbox screen
-        if (mounted) {
-          context.go('/inbox');
-        }
-      } else {
-        // Show error dialog if permission is denied
-        if (mounted) {
-          _showPermissionDeniedDialog();
-        }
+        if (mounted) context.go('/inbox');
+      } else if (mounted) {
+        _showPermissionDeniedDialog();
       }
     } catch (e) {
       debugPrint('Error requesting SMS permission: $e');
-      if (mounted) {
-        _showPermissionDeniedDialog();
-      }
+      if (mounted) _showPermissionDeniedDialog();
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showPermissionDeniedDialog() {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Permission Required'),
@@ -87,279 +74,226 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with icon
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_circle_outline,
-                        color: Color(0xFF0277BD),
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'SMS Permissions',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'We need access to read SMS from your bank and mobile money providers to automatically track your transactions',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Why we need SMS access section
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Why we need SMS access',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0277BD),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildInfoPoint(
-                      'To extract your transaction details from trusted banks',
-                      Icons.account_balance,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoPoint(
-                      'To identify payment amount, recipient, and balances',
-                      Icons.receipt_long,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoPoint(
-                      'We approve each transaction before it is saved',
-                      Icons.check_circle,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Privacy protection section
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Your privacy is protected',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildInfoPoint(
-                      'All SMS processing happens right on your device',
-                      Icons.phone_android,
-                      color: Colors.green,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoPoint(
-                      'Only approved, structured transaction data is stored',
-                      Icons.lock,
-                      color: Colors.green,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoPoint(
-                      'We only read messages from the senders you enable below',
-                      Icons.message,
-                      color: Colors.green,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Trusted Senders section
-              const Text(
-                'Trusted Senders',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Telebirr toggle
-              _buildSenderToggle('Telebirr', _telebirrEnabled, (value) {
-                setState(() {
-                  _telebirrEnabled = value;
-                });
-              }),
-              const Divider(),
-              
-              // CBE toggle
-              _buildSenderToggle('CBE', _cbeEnabled, (value) {
-                setState(() {
-                  _cbeEnabled = value;
-                });
-              }),
-              const Divider(),
-              
-              // Awash Bank toggle
-              _buildSenderToggle('Awash Bank', _awashEnabled, (value) {
-                setState(() {
-                  _awashEnabled = value;
-                });
-              }),
-              const Divider(),
-              
-              // Bank of Abyssinia toggle
-              _buildSenderToggle('Bank of Abyssinia', _bankOfAbyssiniaEnabled, (value) {
-                setState(() {
-                  _bankOfAbyssiniaEnabled = value;
-                });
-              }),
-              const SizedBox(height: 32),
-              
-              // Enable SMS Access button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _requestSmsPermission,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0277BD),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  minimumSize: const Size(double.infinity, 56),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text(
-                        'Enable SMS Access',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Use Manual Import button
-              Center(
-                child: TextButton(
-                  onPressed: () => context.go('/inbox'),
-                  child: const Text(
-                    'Use Manual Import Instead',
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              // Footer note
-              const Center(
-                child: Text(
-                  'You can change these permissions anytime in Settings',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black38,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
+    final theme = Theme.of(context);
+    final t = context.theming;
+
+    return AuthScaffold(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppSpacing.m),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.accentSoft,
+              borderRadius: BorderRadius.circular(AppRadii.l),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+            ),
+            child: const Icon(
+              Icons.sms_outlined,
+              color: AppColors.accent,
+              size: 28,
+            ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.l),
+          Text(
+            'SMS Permissions',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontFamily: AppFonts.display,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'We read SMS from your bank and mobile money providers to '
+            'automatically track transactions.',
+            style: theme.textTheme.bodyMedium?.copyWith(color: t.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.l),
+            color: AppColors.infoSoft.withValues(alpha: 0.15),
+            borderColor: AppColors.info.withValues(alpha: 0.25),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Why we need SMS access',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: AppColors.info,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.m),
+                const _InfoPoint(
+                  icon: Icons.account_balance_outlined,
+                  text: 'Extract transaction details from trusted banks',
+                  color: AppColors.info,
+                ),
+                const SizedBox(height: AppSpacing.s),
+                const _InfoPoint(
+                  icon: Icons.receipt_long_outlined,
+                  text: 'Identify amount, recipient, and balances',
+                  color: AppColors.info,
+                ),
+                const SizedBox(height: AppSpacing.s),
+                const _InfoPoint(
+                  icon: Icons.check_circle_outline_rounded,
+                  text: 'You approve each transaction before it is saved',
+                  color: AppColors.info,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.l),
+            color: AppColors.accentSoft.withValues(alpha: 0.2),
+            borderColor: AppColors.accent.withValues(alpha: 0.25),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your privacy is protected',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.m),
+                const _InfoPoint(
+                  icon: Icons.phone_android_outlined,
+                  text: 'All SMS processing happens on your device',
+                  color: AppColors.accent,
+                ),
+                const SizedBox(height: AppSpacing.s),
+                const _InfoPoint(
+                  icon: Icons.lock_outline_rounded,
+                  text: 'Only approved transaction data is stored',
+                  color: AppColors.accent,
+                ),
+                const SizedBox(height: AppSpacing.s),
+                const _InfoPoint(
+                  icon: Icons.filter_alt_outlined,
+                  text: 'We only read messages from senders you enable',
+                  color: AppColors.accent,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          const SectionHeader(title: 'Trusted Senders', padding: EdgeInsets.zero),
+          const SizedBox(height: AppSpacing.s),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _SenderToggle(
+                  name: 'Telebirr',
+                  value: _telebirrEnabled,
+                  onChanged: (v) => setState(() => _telebirrEnabled = v),
+                ),
+                Divider(height: 1, color: t.border, indent: AppSpacing.l),
+                _SenderToggle(
+                  name: 'CBE',
+                  value: _cbeEnabled,
+                  onChanged: (v) => setState(() => _cbeEnabled = v),
+                ),
+                Divider(height: 1, color: t.border, indent: AppSpacing.l),
+                _SenderToggle(
+                  name: 'Awash Bank',
+                  value: _awashEnabled,
+                  onChanged: (v) => setState(() => _awashEnabled = v),
+                ),
+                Divider(height: 1, color: t.border, indent: AppSpacing.l),
+                _SenderToggle(
+                  name: 'Bank of Abyssinia',
+                  value: _bankOfAbyssiniaEnabled,
+                  onChanged: (v) =>
+                      setState(() => _bankOfAbyssiniaEnabled = v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+          AuthPrimaryButton(
+            label: 'Enable SMS Access',
+            isLoading: _isLoading,
+            onPressed: _requestSmsPermission,
+          ),
+          const SizedBox(height: AppSpacing.m),
+          Center(
+            child: TextButton(
+              onPressed: () => context.go('/inbox'),
+              child: Text(
+                'Use Manual Import Instead',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: t.textSecondary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'You can change these permissions anytime in Settings.',
+            style: theme.textTheme.bodySmall?.copyWith(color: t.textMuted),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildInfoPoint(String text, IconData icon, {Color color = const Color(0xFF0277BD)}) {
+class _InfoPoint extends StatelessWidget {
+  const _InfoPoint({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          color: color,
-          size: 20,
-        ),
-        const SizedBox(width: 12),
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: AppSpacing.m),
         Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 14,
-            ),
-          ),
+          child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
         ),
       ],
     );
   }
-  
-  Widget _buildSenderToggle(String name, bool value, Function(bool) onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 16,
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: const Color(0xFF0277BD),
-          ),
-        ],
-      ),
+}
+
+class _SenderToggle extends StatelessWidget {
+  const _SenderToggle({
+    required this.name,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String name;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      title: Text(name, style: Theme.of(context).textTheme.bodyLarge),
+      value: value,
+      onChanged: onChanged,
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+      activeTrackColor: AppColors.accent.withValues(alpha: 0.45),
+      activeThumbColor: AppColors.accent,
     );
   }
 }

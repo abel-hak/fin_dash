@@ -2,128 +2,95 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/features/dashboard/dashboard_logic.dart';
+import 'package:sms_transaction_app/features/shell/shell_navigation.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
+/// Navigation drawer, token-driven to match the dark Finance OS theme.
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
+    final theme = Theme.of(context);
+    final t = context.theming;
+    final money = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
     final transactionsAsync = ref.watch(parsedTransactionsProvider);
-    
-    // Get real balance from transactions
-    final totalBalance = transactionsAsync.when(
-      data: (transactions) {
-        if (transactions.isEmpty) return 0.0;
-        final txWithBalance = transactions.where((tx) => tx.balance != null).toList();
-        if (txWithBalance.isEmpty) return 0.0;
-        return txWithBalance.first.balance ?? 0.0;
-      },
-      loading: () => 0.0,
-      error: (_, __) => 0.0,
+    final user = ref.watch(userProvider);
+
+    final balance = transactionsAsync.maybeWhen(
+      data: DashboardData.latestBalance,
+      orElse: () => 0.0,
     );
+    final name = (user?.email ?? 'there').split('@').first;
+    final initials =
+        name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U';
+
     return Drawer(
-      child: Container(
-        color: Colors.white,
+      backgroundColor: t.surface,
+      child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF00BCD4), Color(0xFF00ACC1)],
+            Container(
+              margin: const EdgeInsets.all(AppSpacing.l),
+              padding: const EdgeInsets.all(AppSpacing.l),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: AppColors.accentGradient,
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(AppRadii.l),
+                boxShadow: AppShadows.glow(),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: const Text(
-                      'JD',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF00BCD4),
-                      ),
+                    radius: 26,
+                    backgroundColor: AppColors.canvas,
+                    child: Text(
+                      initials,
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(color: AppColors.accent),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'FinanceDash',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const SizedBox(height: AppSpacing.m),
+                  Text(
+                    name,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(color: AppColors.textOnAccent),
                   ),
                   Text(
-                    currencyFormat.format(totalBalance),
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+                    money.format(balance),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textOnAccent.withValues(alpha: 0.8),
                     ),
                   ),
                 ],
               ),
             ),
-            _buildDrawerItem(
-              context,
-              icon: Icons.dashboard,
-              title: 'Dashboard',
-              route: '/dashboard',
-            ),
-            _buildDrawerItem(
-              context,
-              icon: Icons.account_balance_wallet,
-              title: 'Accounts',
-              route: '/accounts',
-            ),
-            _buildDrawerItem(
-              context,
-              icon: Icons.receipt_long,
-              title: 'Transactions',
-              route: '/transactions',
-            ),
-            _buildDrawerItem(
-              context,
-              icon: Icons.pie_chart,
-              title: 'Budgets',
-              route: '/budgets',
-            ),
-            _buildDrawerItem(
-              context,
-              icon: Icons.flag,
-              title: 'Goals',
-              route: '/goals',
-            ),
-            const Divider(),
-            _buildDrawerItem(
-              context,
-              icon: Icons.inbox,
-              title: 'SMS Inbox',
-              route: '/inbox',
-            ),
-            _buildDrawerItem(
-              context,
-              icon: Icons.settings,
-              title: 'Settings',
-              route: '/settings',
-            ),
-            const Divider(),
+            _item(context, Icons.dashboard_rounded, 'Dashboard', '/dashboard'),
+            _item(context, Icons.account_balance_wallet_rounded, 'Accounts',
+                '/accounts'),
+            _item(context, Icons.receipt_long_rounded, 'Transactions',
+                '/transactions'),
+            _item(context, Icons.pie_chart_rounded, 'Budgets', '/budgets'),
+            _item(context, Icons.flag_rounded, 'Goals', '/goals'),
+            Divider(color: t.border),
+            _item(context, Icons.inbox_rounded, 'SMS Inbox', '/inbox'),
+            _item(context, Icons.settings_rounded, 'Settings', '/settings'),
+            Divider(color: t.border),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
+              leading: const Icon(Icons.logout_rounded, color: AppColors.danger),
+              title: Text(
                 'Logout',
-                style: TextStyle(color: Colors.red),
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(color: AppColors.danger),
               ),
               onTap: () async {
-                // Show confirmation dialog
                 final shouldLogout = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -136,15 +103,14 @@ class AppDrawer extends ConsumerWidget {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        style:
+                            TextButton.styleFrom(foregroundColor: AppColors.danger),
                         child: const Text('Logout'),
                       ),
                     ],
                   ),
                 );
-                
                 if (shouldLogout == true && context.mounted) {
-                  // Navigate to login screen
                   context.go('/login');
                 }
               },
@@ -155,32 +121,30 @@ class AppDrawer extends ConsumerWidget {
     );
   }
 
-  Widget _buildDrawerItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String route,
-  }) {
-    final currentRoute = GoRouterState.of(context).matchedLocation;
-    final isSelected = currentRoute == route;
+  Widget _item(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String route,
+  ) {
+    final theme = Theme.of(context);
+    final t = context.theming;
+    final selected = context.isShellRouteSelected(route);
+    final color = selected ? AppColors.accent : t.textSecondary;
 
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? const Color(0xFF00BCD4) : Colors.black54,
-      ),
+      leading: Icon(icon, color: color),
       title: Text(
         title,
-        style: TextStyle(
-          color: isSelected ? const Color(0xFF00BCD4) : Colors.black87,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        style: theme.textTheme.titleSmall?.copyWith(
+          color: selected ? AppColors.accent : t.textPrimary,
         ),
       ),
-      selected: isSelected,
-      selectedTileColor: const Color(0xFF00BCD4).withOpacity(0.1),
+      selected: selected,
+      selectedTileColor: AppColors.accentSoft,
       onTap: () {
-        Navigator.pop(context); // Close drawer
-        context.go(route);
+        Navigator.pop(context);
+        context.goShellRoute(route);
       },
     );
   }

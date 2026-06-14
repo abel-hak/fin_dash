@@ -5,20 +5,39 @@ import 'package:sms_transaction_app/core/tokens.dart';
 import 'package:sms_transaction_app/data/models/goal.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
-class CreateGoalSheet extends ConsumerStatefulWidget {
-  const CreateGoalSheet({super.key});
+/// Bottom sheet for editing an existing savings goal's name, description,
+/// target amount, and deadline. Mirrors [CreateGoalSheet] but pre-fills from
+/// the passed-in [goal] and persists via `updateGoal` (preserving id, current
+/// amount, icon, and active flag).
+class EditGoalSheet extends ConsumerStatefulWidget {
+  const EditGoalSheet({super.key, required this.goal});
+
+  final Goal goal;
 
   @override
-  ConsumerState<CreateGoalSheet> createState() => _CreateGoalSheetState();
+  ConsumerState<EditGoalSheet> createState() => _EditGoalSheetState();
 }
 
-class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
+class _EditGoalSheetState extends ConsumerState<EditGoalSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _targetController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  late final TextEditingController _nameController;
+  late final TextEditingController _targetController;
+  late final TextEditingController _descriptionController;
+  late DateTime _selectedDeadline;
 
-  DateTime _selectedDeadline = DateTime.now().add(const Duration(days: 180));
+  @override
+  void initState() {
+    super.initState();
+    final g = widget.goal;
+    _nameController = TextEditingController(text: g.name);
+    _targetController = TextEditingController(
+      text: g.targetAmount == g.targetAmount.roundToDouble()
+          ? g.targetAmount.toInt().toString()
+          : g.targetAmount.toString(),
+    );
+    _descriptionController = TextEditingController(text: g.description);
+    _selectedDeadline = g.deadline;
+  }
 
   @override
   void dispose() {
@@ -31,9 +50,11 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
   Future<void> _selectDeadline() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDeadline,
+      initialDate: _selectedDeadline.isBefore(DateTime.now())
+          ? DateTime.now()
+          : _selectedDeadline,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 3650)), // 10 years
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
     );
 
     if (picked != null) {
@@ -44,27 +65,23 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
   }
 
   Future<void> _saveGoal() async {
-    if (_formKey.currentState!.validate()) {
-      final db = ref.read(databaseHelperProvider);
+    if (!_formKey.currentState!.validate()) return;
 
-      // Create goal object
-      final goal = Goal.create(
-        name: _nameController.text,
-        description: _descriptionController.text,
-        targetAmount: double.parse(_targetController.text),
-        deadline: _selectedDeadline,
-        iconName: 'flag',
-      );
+    final db = ref.read(databaseHelperProvider);
 
-      // Save to database
-      await db.insertGoal(goal.toMap());
+    // Preserve everything not editable here (id, currentAmount, icon, active).
+    final updated = widget.goal.copyWith(
+      name: _nameController.text,
+      description: _descriptionController.text,
+      targetAmount: double.parse(_targetController.text),
+      deadline: _selectedDeadline,
+    );
 
-      // Refresh goals provider
-      ref.invalidate(goalsProvider);
+    await db.updateGoal(updated.id, updated.toMap());
+    ref.invalidate(goalsProvider);
 
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
+    if (mounted) {
+      Navigator.pop(context, true);
     }
   }
 
@@ -101,12 +118,12 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
                       color: accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppRadii.m),
                     ),
-                    child: const Icon(Icons.flag, color: accent),
+                    child: const Icon(Icons.edit, color: accent),
                   ),
                   const SizedBox(width: AppSpacing.m),
                   Expanded(
                     child: Text(
-                      'Create Savings Goal',
+                      'Edit Savings Goal',
                       style: theme.textTheme.titleLarge,
                     ),
                   ),
@@ -121,9 +138,8 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
               // Goal Name
               Text(
                 'Goal Name',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: AppSpacing.s),
               TextFormField(
@@ -143,9 +159,8 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
               // Description
               Text(
                 'Description',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: AppSpacing.s),
               TextFormField(
@@ -160,9 +175,8 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
               // Target Amount
               Text(
                 'Target Amount',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: AppSpacing.s),
               TextFormField(
@@ -176,8 +190,13 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a target amount';
                   }
-                  if (double.tryParse(value) == null) {
+                  final parsed = double.tryParse(value);
+                  if (parsed == null) {
                     return 'Please enter a valid number';
+                  }
+                  if (parsed < widget.goal.currentAmount) {
+                    return 'Target can\'t be less than saved '
+                        '(${widget.goal.currentAmount.toStringAsFixed(0)})';
                   }
                   return null;
                 },
@@ -187,9 +206,8 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
               // Deadline
               Text(
                 'Target Date',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: AppSpacing.s),
               InkWell(
@@ -216,12 +234,12 @@ class _CreateGoalSheetState extends ConsumerState<CreateGoalSheet> {
               ),
               const SizedBox(height: AppSpacing.xxl),
 
-              // Create Button
+              // Save Button
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _saveGoal,
-                  child: const Text('Create Goal'),
+                  child: const Text('Save Changes'),
                 ),
               ),
               const SizedBox(height: AppSpacing.s),

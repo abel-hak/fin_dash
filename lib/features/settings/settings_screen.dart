@@ -1,12 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
-import 'package:sms_transaction_app/services/auth_service.dart';
-import 'package:sms_transaction_app/services/permissions_service.dart';
-import 'package:sms_transaction_app/services/preferences_service.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import 'package:sms_transaction_app/services/providers.dart';
+import 'package:sms_transaction_app/services/demo_data_service.dart';
 import 'package:sms_transaction_app/features/dashboard/widgets/app_drawer.dart';
+import 'package:sms_transaction_app/features/legal/legal_screen.dart';
 import 'test_sms_screen.dart';
 import 'receipt_scraper_test_screen.dart';
 
@@ -147,12 +148,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _loadDemoData() async {
+    setState(() => _isLoading = true);
+    try {
+      final result = await ref.read(demoDataServiceProvider).seed();
+      invalidateDemoDataProviders(ref);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Demo data loaded: ${result.transactions} transactions, '
+            '${result.budgets} budgets, ${result.goals} goals.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load demo data: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _clearDemoData() async {
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(demoDataServiceProvider).clear();
+      invalidateDemoDataProviders(ref);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Demo data cleared.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to clear demo data: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _exportData() async {
-    // TODO: Implement data export
+    final transactions = ref.read(parsedTransactionsProvider).valueOrNull;
+    if (transactions == null || transactions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No transactions to export yet.')),
+      );
+      return;
+    }
+
+    final ok = await ref
+        .read(exportServiceProvider)
+        .shareTransactionsCsv(transactions);
+    if (!mounted || ok) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Data export not implemented yet'),
-      ),
+      const SnackBar(content: Text('Export failed. Please try again.')),
     );
   }
 
@@ -171,336 +224,256 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
-    final transactionsAsync = ref.watch(parsedTransactionsProvider);
-    
-    // Get real balance from transactions
-    final totalBalance = transactionsAsync.when(
-      data: (txs) {
-        if (txs.isEmpty) return 0.0;
-        final txWithBalance = txs.where((tx) => tx.balance != null).toList();
-        if (txWithBalance.isEmpty) return 0.0;
-        return txWithBalance.first.balance ?? 0.0;
-      },
-      loading: () => 0.0,
-      error: (_, __) => 0.0,
-    );
-    
+    final t = context.theming;
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: t.canvas,
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Total Balance',
-              style: TextStyle(
-                color: Colors.black54,
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              currencyFormat.format(totalBalance),
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: () {},
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.cyan,
-              child: const Text('JD', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  const Text(
-                    'Settings',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.l,
+                  AppSpacing.xl,
+                  AppSpacing.huge,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const ScreenHeader(
+                      title: 'Settings',
+                      subtitle: 'Manage your app preferences and account',
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Manage your app preferences and account',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: AppSpacing.xxl),
+
                   // SMS Permissions Card
-                  _buildCard(
+                  const SectionHeader(
                     title: 'SMS Permissions',
-                    icon: Icons.sms,
-                    iconColor: Colors.blue,
-                    children: [
-                      _buildSwitchTile(
-                        title: 'SMS Access',
-                        subtitle: _hasSmsPermission
-                            ? 'Enabled - automatic transaction detection'
-                            : 'Disabled - manual entry only',
-                        value: _hasSmsPermission,
-                        onChanged: (value) {
-                          if (value) {
-                            _requestSmsPermission();
-                          }
-                        },
-                      ),
-                    ],
+                    padding: EdgeInsets.zero,
                   ),
-                  const SizedBox(height: 16),
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        _buildSwitchTile(
+                          icon: Icons.sms,
+                          title: 'SMS Access',
+                          subtitle: _hasSmsPermission
+                              ? 'Enabled - automatic transaction detection'
+                              : 'Disabled - manual entry only',
+                          value: _hasSmsPermission,
+                          onChanged: (value) {
+                            if (value) {
+                              _requestSmsPermission();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.l),
 
                   // Trusted Senders Card
-                  _buildCard(
+                  const SectionHeader(
                     title: 'Trusted Senders',
-                    icon: Icons.verified_user,
-                    iconColor: Colors.green,
-                    children: _trustedSenders.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final sender = entry.value;
-                      return Column(
-                        children: [
-                          if (index > 0) const Divider(height: 1),
-                          _buildSwitchTile(
-                            title: sender,
-                            subtitle: _autoApproveSettings[sender] ?? false
-                                ? 'Auto-approve: ON'
-                                : 'Auto-approve: OFF',
-                            value: _autoApproveSettings[sender] ?? false,
-                            onChanged: (value) => _saveAutoApproveSettings(sender, value),
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                    padding: EdgeInsets.zero,
                   ),
-                  const SizedBox(height: 16),
-
-                  // Privacy & Data Card
-                  _buildCard(
-                    title: 'Privacy & Data',
-                    icon: Icons.privacy_tip,
-                    iconColor: Colors.purple,
-                    children: [
-                      _buildSwitchTile(
-                        title: 'Delete Raw SMS After Processing',
-                        subtitle: 'Remove original SMS messages after they are parsed',
-                        value: _deleteRawSms,
-                        onChanged: _saveDeleteRawSetting,
-                      ),
-                      const Divider(height: 1),
-                      _buildSwitchTile(
-                        title: 'Send Anonymous Diagnostics',
-                        subtitle: 'Help us improve parsing accuracy',
-                        value: _diagnosticsEnabled,
-                        onChanged: _saveDiagnosticsEnabled,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Data Management Card
-                  _buildCard(
-                    title: 'Data Management',
-                    icon: Icons.storage,
-                    iconColor: Colors.orange,
-                    children: [
-                      _buildActionTile(
-                        title: 'Test SMS Parser',
-                        subtitle: 'Test SMS parsing with sample messages',
-                        icon: Icons.bug_report,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const TestSmsScreen(),
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children:
+                          _trustedSenders.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final sender = entry.value;
+                        return Column(
+                          children: [
+                            if (index > 0) _divider(t),
+                            _buildSwitchTile(
+                              icon: Icons.verified_user,
+                              title: sender,
+                              subtitle: _autoApproveSettings[sender] ?? false
+                                  ? 'Auto-approve: ON'
+                                  : 'Auto-approve: OFF',
+                              value: _autoApproveSettings[sender] ?? false,
+                              onChanged: (value) =>
+                                  _saveAutoApproveSettings(sender, value),
                             ),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1),
-                      _buildActionTile(
-                        title: 'Test Receipt Scraper',
-                        subtitle: 'Test receipt link data extraction',
-                        icon: Icons.receipt_long,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ReceiptScraperTestScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1),
-                      _buildActionTile(
-                        title: 'Export My Data',
-                        subtitle: 'Download all your transaction data',
-                        icon: Icons.download,
-                        onTap: _exportData,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Account Card
-                  _buildCard(
-                    title: 'Account',
-                    icon: Icons.person,
-                    iconColor: Colors.cyan,
-                    children: [
-                      _buildActionTile(
-                        title: 'Privacy Policy',
-                        icon: Icons.open_in_new,
-                        onTap: () {},
-                      ),
-                      const Divider(height: 1),
-                      _buildActionTile(
-                        title: 'Terms of Service',
-                        icon: Icons.open_in_new,
-                        onTap: () {},
-                      ),
-                      const Divider(height: 1),
-                      _buildActionTile(
-                        title: 'Log Out',
-                        icon: Icons.logout,
-                        iconColor: Colors.red,
-                        textColor: Colors.red,
-                        onTap: _logout,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // App version
-                  const Center(
-                    child: Text(
-                      'Version 1.0.0',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
+                          ],
+                        );
+                      }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.l),
+
+                  // Privacy & Data Card
+                  const SectionHeader(
+                    title: 'Privacy & Data',
+                    padding: EdgeInsets.zero,
+                  ),
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        _buildSwitchTile(
+                          icon: Icons.privacy_tip,
+                          title: 'Delete Raw SMS After Processing',
+                          subtitle:
+                              'Remove original SMS messages after they are parsed',
+                          value: _deleteRawSms,
+                          onChanged: _saveDeleteRawSetting,
+                        ),
+                        _divider(t),
+                        _buildSwitchTile(
+                          icon: Icons.insights,
+                          title: 'Send Anonymous Diagnostics',
+                          subtitle: 'Help us improve parsing accuracy',
+                          value: _diagnosticsEnabled,
+                          onChanged: _saveDiagnosticsEnabled,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.l),
+
+                  // Data Management Card
+                  const SectionHeader(
+                    title: 'Data Management',
+                    padding: EdgeInsets.zero,
+                  ),
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        _buildActionTile(
+                          title: 'Test SMS Parser',
+                          subtitle: 'Test SMS parsing with sample messages',
+                          icon: Icons.bug_report,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TestSmsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _divider(t),
+                        _buildActionTile(
+                          title: 'Test Receipt Scraper',
+                          subtitle: 'Test receipt link data extraction',
+                          icon: Icons.receipt_long,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ReceiptScraperTestScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _divider(t),
+                        _buildActionTile(
+                          title: 'Export My Data',
+                          subtitle: 'Download all your transaction data',
+                          icon: Icons.download,
+                          onTap: _exportData,
+                        ),
+                        if (kDebugMode) ...[
+                          _divider(t),
+                          _buildActionTile(
+                            title: 'Load Demo Data',
+                            subtitle:
+                                'Populate transactions, budgets, and goals for UI preview',
+                            icon: Icons.dataset_outlined,
+                            onTap: _loadDemoData,
+                          ),
+                          _divider(t),
+                          _buildActionTile(
+                            title: 'Clear Demo Data',
+                            subtitle: 'Remove sample data tagged as demo',
+                            icon: Icons.delete_sweep_outlined,
+                            onTap: _clearDemoData,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.l),
+
+                  // Account Card
+                  const SectionHeader(
+                    title: 'Account',
+                    padding: EdgeInsets.zero,
+                  ),
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        _buildActionTile(
+                          title: 'Privacy Policy',
+                          icon: Icons.open_in_new,
+                          onTap: () => LegalScreen.show(
+                            context,
+                            LegalDocument.privacyPolicy,
+                          ),
+                        ),
+                        _divider(t),
+                        _buildActionTile(
+                          title: 'Terms of Service',
+                          icon: Icons.open_in_new,
+                          onTap: () => LegalScreen.show(
+                            context,
+                            LegalDocument.termsOfService,
+                          ),
+                        ),
+                        _divider(t),
+                        _buildActionTile(
+                          title: 'Log Out',
+                          icon: Icons.logout,
+                          destructive: true,
+                          onTap: _logout,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+
+                  // App version
+                  Center(
+                    child: Text(
+                      'Version 1.0.0',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: t.textMuted),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
                 ],
               ),
             ),
+      ),
     );
   }
 
-  Widget _buildCard({
-    required String title,
-    required IconData icon,
-    required Color iconColor,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ...children,
-        ],
-      ),
-    );
-  }
+  Widget _divider(AppTheming t) => Container(height: 1, color: t.border);
 
   Widget _buildSwitchTile({
+    required IconData icon,
     required String title,
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: Colors.cyan,
-          ),
-        ],
+    return AppTile(
+      leading: _iconChip(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Switch(
+        value: value,
+        onChanged: onChanged,
       ),
     );
   }
@@ -509,48 +482,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String title,
     String? subtitle,
     required IconData icon,
-    Color? iconColor,
-    Color? textColor,
+    bool destructive = false,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    final t = context.theming;
+    final color = destructive ? AppColors.danger : null;
+    return AppTile(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: textColor ?? Colors.black87,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Icon(
-              icon,
-              color: iconColor ?? Colors.black54,
-              size: 20,
-            ),
-          ],
-        ),
+      leading: _iconChip(icon, destructive: destructive),
+      title: Text(
+        title,
+        style: color == null ? null : TextStyle(color: color),
+      ),
+      subtitle: subtitle == null ? null : Text(subtitle),
+      trailing: Icon(
+        destructive ? icon : Icons.chevron_right_rounded,
+        color: destructive ? AppColors.danger : t.textMuted,
+        size: 20,
+      ),
+    );
+  }
+
+  Widget _iconChip(IconData icon, {bool destructive = false}) {
+    return Container(
+      height: 40,
+      width: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: destructive ? AppColors.dangerSoft : AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppRadii.m),
+      ),
+      child: Icon(
+        icon,
+        color: destructive ? AppColors.danger : AppColors.accent,
+        size: 20,
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sms_transaction_app/core/logger.dart';
 import 'package:sms_transaction_app/data/db/database_helper.dart';
+import 'package:sms_transaction_app/data/models/parsed_tx.dart';
 import 'package:sms_transaction_app/data/models/raw_sms_event.dart';
 import 'package:sms_transaction_app/domain/parser/sms_parser.dart';
 import 'package:sms_transaction_app/services/auth_service.dart';
@@ -120,31 +121,74 @@ class SmsService {
         timestamp: timestamp,
         userId: userId,
       );
-      
+
       if (parseResult != null) {
         // Check if this transaction already exists (by fingerprint)
         final exists = await _databaseHelper.transactionExists(parseResult.transaction.fingerprint);
         if (!exists) {
+          // If the user has enabled auto-approve for this sender, skip the
+          // manual review step and store the transaction as approved — the
+          // periodic sync service will then push it to the server.
+          final autoApprove = await _shouldAutoApprove(sender);
+          final toStore = autoApprove
+              ? parseResult.transaction
+                  .copyWith(status: TransactionStatus.approved)
+              : parseResult.transaction;
+
           // Store the parsed transaction
-          await _databaseHelper.insertParsedTransaction(parseResult.transaction);
-          
-          // Mark the raw SMS as handled
-          await _databaseHelper.updateRawSmsEvent(
-            rawSms.copyWith(handled: 1),
-          );
-          
+          await _databaseHelper.insertParsedTransaction(toStore);
+
+          // Either drop the raw SMS (privacy setting) or mark it handled.
+          await _finalizeRawSms(rawSms);
+
           // Notify provider layer so the inbox/transaction lists refresh.
           _onTransactionAdded?.call();
 
-          AppLogger.sms('PARSED', sender, 'Transaction: ${parseResult.transaction.amount} ${parseResult.transaction.currency}');
+          AppLogger.sms(
+            autoApprove ? 'AUTO-APPROVED' : 'PARSED',
+            sender,
+            'Transaction: ${toStore.amount} ${toStore.currency}',
+          );
         } else {
           AppLogger.sms('DUPLICATE', sender, 'Transaction already exists');
+          // Still honor the delete-raw preference for duplicates.
+          await _finalizeRawSms(rawSms);
         }
       } else {
         AppLogger.sms('FAILED', sender, 'Could not parse SMS');
       }
     } catch (e) {
       AppLogger.error('Error handling SMS', e);
+    }
+  }
+
+  /// Whether transactions from [sender] should bypass manual review, per the
+  /// user's per-sender auto-approve preferences. Matching mirrors
+  /// [_isTrustedSender] (case-insensitive contains) so the keys configured in
+  /// Settings line up with the trusted-sender names.
+  Future<bool> _shouldAutoApprove(String sender) async {
+    try {
+      final settings = await _preferencesService.getAutoApproveSettings();
+      final lowerSender = sender.toLowerCase();
+      for (final entry in settings.entries) {
+        if (entry.value && lowerSender.contains(entry.key.toLowerCase())) {
+          return true;
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Error reading auto-approve settings', e);
+    }
+    return false;
+  }
+
+  /// Applies the "delete raw SMS after processing" privacy preference: deletes
+  /// the stored raw event when enabled, otherwise marks it handled.
+  Future<void> _finalizeRawSms(RawSmsEvent rawSms) async {
+    final deleteRaw = await _preferencesService.getDeleteRawSetting();
+    if (deleteRaw) {
+      await _databaseHelper.deleteRawSmsEvent(rawSms.id);
+    } else {
+      await _databaseHelper.updateRawSmsEvent(rawSms.copyWith(handled: 1));
     }
   }
   

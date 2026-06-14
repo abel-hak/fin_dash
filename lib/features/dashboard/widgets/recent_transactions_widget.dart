@@ -1,130 +1,118 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
+import 'package:sms_transaction_app/data/models/parsed_tx.dart';
+import 'package:sms_transaction_app/features/dashboard/dashboard_logic.dart';
+import 'package:sms_transaction_app/features/shell/shell_navigation.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
+/// Recent transactions card for the dashboard — header + up to five rows,
+/// rendered with the shared design-system primitives.
 class RecentTransactionsWidget extends ConsumerWidget {
   const RecentTransactionsWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final transactions = ref.watch(parsedTransactionsProvider);
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Recent Transactions',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              TextButton(
-                onPressed: () => context.go('/transactions'),
-                child: const Text('View all'),
-              ),
-            ],
+          SectionHeader(
+            title: 'Recent Transactions',
+            actionLabel: 'See all',
+            onAction: () => context.goShellRoute('/transactions'),
           ),
-          const SizedBox(height: 16),
           transactions.when(
             data: (txList) {
-              final recentTx = txList.take(5).toList();
-              if (recentTx.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Text('No transactions yet'),
+              final recent = txList.take(5).toList();
+              if (recent.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.l,
+                    AppSpacing.s,
+                    AppSpacing.l,
+                    AppSpacing.l,
                   ),
+                  child: Text('No transactions yet'),
                 );
               }
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: recentTx.length,
-                separatorBuilder: (context, index) => const Divider(height: 24),
-                itemBuilder: (context, index) {
-                  final tx = recentTx[index];
-                  // Determine if income based on merchant or amount context
-                  final isIncome = tx.merchant?.toLowerCase().contains('salary') ?? false;
-                  
-                  return Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isIncome 
-                              ? Colors.green.shade50 
-                              : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-                          color: isIncome ? Colors.green : Colors.red,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tx.merchant,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              tx.occurredAt.split('T')[0], // Simple date display
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        '${isIncome ? '+' : '-'}${currencyFormat.format(tx.amount)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isIncome ? Colors.green : Colors.red,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              return Column(
+                children: [
+                  for (final tx in recent) _TransactionRow(tx: tx),
+                ],
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stack) => Center(child: Text('Error: $error')),
+            loading: () => const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.l,
+                AppSpacing.s,
+                AppSpacing.l,
+                AppSpacing.l,
+              ),
+              child: Column(
+                children: [
+                  SkeletonBox(height: 44),
+                  SizedBox(height: AppSpacing.m),
+                  SkeletonBox(height: 44),
+                  SizedBox(height: AppSpacing.m),
+                  SkeletonBox(height: 44),
+                ],
+              ),
+            ),
+            error: (error, _) => Padding(
+              padding: const EdgeInsets.all(AppSpacing.l),
+              child: Text('Error: $error'),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TransactionRow extends StatelessWidget {
+  const _TransactionRow({required this.tx});
+
+  final ParsedTransaction tx;
+
+  @override
+  Widget build(BuildContext context) {
+    final income = DashboardData.isIncome(tx);
+    final tone = income ? AppColors.success : AppColors.danger;
+    final date = tx.occurredAt.contains('T')
+        ? tx.occurredAt.split('T').first
+        : tx.occurredAt;
+
+    return AppTile(
+      onTap: () => context.go('/review/${tx.id}'),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: tone.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(AppRadii.m),
+        ),
+        child: Icon(
+          income ? Icons.south_west_rounded : Icons.north_east_rounded,
+          color: tone,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        tx.merchant.isEmpty ? tx.sender : tx.merchant,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(date),
+      trailing: AmountText(
+        amount: tx.amount,
+        currency: tx.currency.isEmpty ? 'ETB' : tx.currency,
+        kind: income ? AmountKind.income : AmountKind.expense,
       ),
     );
   }

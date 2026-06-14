@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import '../../domain/parser/sms_parser.dart';
 import '../../domain/templates/template_model.dart';
 
@@ -32,7 +34,7 @@ class _TestSmsScreenState extends State<TestSmsScreen> {
       final List<dynamic> templatesData = json.decode(templatesJson);
       final templateRegistry = TemplateRegistry.fromJson(templatesData);
       _parser = SmsParser(templateRegistry);
-      
+
       setState(() {
         _isLoading = false;
       });
@@ -50,7 +52,7 @@ class _TestSmsScreenState extends State<TestSmsScreen> {
       'message': 'Dear Abel, You have transferred ETB 100.00 to Kidus Yared on 17/10/2025 at 16:21:36 from your account 1*********8193. Your Current Balance is ETB 481.47. Thank you for Banking with CBE!'
     },
     {
-      'sender': 'CBE', 
+      'sender': 'CBE',
       'message': 'Dear Abel your Account 1*********8193 has been Credited with ETB 100.00 from Nathnael Adinew. on 15/10/2025 at 13:49:25 with Ref No FT2528885KX6 Your Current Balance is ETB 273.79. Thank you for Banking with CBE!'
     },
     {
@@ -83,7 +85,7 @@ class _TestSmsScreenState extends State<TestSmsScreen> {
         timestamp: DateTime.now(),
         userId: 'test-user',
       );
-      
+
       setState(() {
         _result = result;
         if (result == null) {
@@ -104,82 +106,80 @@ class _TestSmsScreenState extends State<TestSmsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.theming;
+    final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: t.canvas,
       appBar: AppBar(
         title: const Text('Test SMS Parser'),
-        backgroundColor: const Color(0xFF0277BD),
-        foregroundColor: Colors.white,
       ),
-      body: _isLoading 
+      body: _isLoading
         ? const Center(child: CircularProgressIndicator())
         : Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(AppSpacing.l),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Test samples
-            const Text(
+            Text(
               'Quick Test Samples:',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s),
             SizedBox(
               height: 120,
               child: ListView.builder(
                 itemCount: _testSamples.length,
                 itemBuilder: (context, index) {
                   final sample = _testSamples[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(sample['sender']!),
-                      subtitle: Text(
-                        sample['message']!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.s),
+                    child: AppCard(
+                      padding: EdgeInsets.zero,
+                      child: AppTile(
+                        title: Text(sample['sender']!),
+                        subtitle: Text(
+                          sample['message']!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => _loadTestSample(sample),
                       ),
-                      onTap: () => _loadTestSample(sample),
                     ),
                   );
                 },
               ),
             ),
-            const SizedBox(height: 16),
-            
+            const SizedBox(height: AppSpacing.l),
+
             // Sender input
             TextField(
               controller: _senderController,
               decoration: const InputDecoration(
                 labelText: 'Sender',
-                border: OutlineInputBorder(),
                 hintText: 'e.g., CBE, Telebirr',
               ),
             ),
-            const SizedBox(height: 16),
-            
+            const SizedBox(height: AppSpacing.l),
+
             // SMS content input
             TextField(
               controller: _smsController,
               decoration: const InputDecoration(
                 labelText: 'SMS Content',
-                border: OutlineInputBorder(),
                 hintText: 'Paste SMS message here...',
               ),
               maxLines: 4,
             ),
-            const SizedBox(height: 16),
-            
+            const SizedBox(height: AppSpacing.l),
+
             // Parse button
             ElevatedButton(
               onPressed: _parseSms,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0277BD),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
               child: const Text('Parse SMS'),
             ),
-            const SizedBox(height: 16),
-            
+            const SizedBox(height: AppSpacing.l),
+
             // Results
             Expanded(
               child: SingleChildScrollView(
@@ -187,61 +187,55 @@ class _TestSmsScreenState extends State<TestSmsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (_error != null) ...[
-                      const Text(
+                      Text(
                         'Error:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: AppColors.danger),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          border: Border.all(color: Colors.red),
-                          borderRadius: BorderRadius.circular(8),
+                      const SizedBox(height: AppSpacing.s),
+                      AppCard(
+                        color: AppColors.dangerSoft,
+                        borderColor: AppColors.danger,
+                        padding: const EdgeInsets.all(AppSpacing.m),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(color: t.textPrimary),
                         ),
-                        child: Text(_error!),
                       ),
                     ],
                     if (_result != null) ...[
-                      const Text(
+                      Text(
                         'Parsed Result:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: AppColors.success),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          border: Border.all(color: Colors.green),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Template: ${_result!.matchedTemplateId}'),
-                            Text('Confidence: ${(_result!.confidence * 100).toStringAsFixed(1)}%'),
-                            const SizedBox(height: 8),
-                            const Text('Transaction Details:', style: TextStyle(fontWeight: FontWeight.bold)),
-                            Text('Amount: ${_result!.transaction.amount} ${_result!.transaction.currency}'),
-                            Text('Merchant: ${_result!.transaction.merchant}'),
-                            if (_result!.transaction.balance != null)
-                              Text('Balance: ${_result!.transaction.balance} ${_result!.transaction.currency}'),
-                            if (_result!.transaction.transactionId != null)
-                              Text('Transaction ID: ${_result!.transaction.transactionId}'),
-                            if (_result!.transaction.timestamp != null)
-                              Text('Timestamp: ${_result!.transaction.timestamp}'),
-                            if (_result!.transaction.recipient != null)
-                              Text('Recipient: ${_result!.transaction.recipient}'),
-                            Text('Channel: ${_result!.transaction.channel}'),
-                          ],
+                      const SizedBox(height: AppSpacing.s),
+                      AppCard(
+                        color: AppColors.accentSoft,
+                        borderColor: AppColors.success,
+                        padding: const EdgeInsets.all(AppSpacing.m),
+                        child: DefaultTextStyle.merge(
+                          style: TextStyle(color: t.textPrimary),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Template: ${_result!.matchedTemplateId}'),
+                              Text('Confidence: ${(_result!.confidence * 100).toStringAsFixed(1)}%'),
+                              const SizedBox(height: AppSpacing.s),
+                              const Text('Transaction Details:', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('Amount: ${_result!.transaction.amount} ${_result!.transaction.currency}'),
+                              Text('Merchant: ${_result!.transaction.merchant}'),
+                              if (_result!.transaction.balance != null)
+                                Text('Balance: ${_result!.transaction.balance} ${_result!.transaction.currency}'),
+                              if (_result!.transaction.transactionId != null)
+                                Text('Transaction ID: ${_result!.transaction.transactionId}'),
+                              if (_result!.transaction.timestamp != null)
+                                Text('Timestamp: ${_result!.transaction.timestamp}'),
+                              if (_result!.transaction.recipient != null)
+                                Text('Recipient: ${_result!.transaction.recipient}'),
+                              Text('Channel: ${_result!.transaction.channel}'),
+                            ],
+                          ),
                         ),
                       ),
                     ],

@@ -24,6 +24,37 @@ class AppRadii {
   static const double pill = 999;
 }
 
+/// Font families bundled in `pubspec.yaml`. `body` is the default UI face;
+/// `display` is the techy face used for headlines and large numeric figures.
+class AppFonts {
+  static const String body = 'Inter';
+  static const String display = 'Space Grotesk';
+}
+
+/// Elevation + brand-glow shadows. Consume via `AppShadows.glow()` etc. rather
+/// than hand-rolling `BoxShadow`s in feature code.
+class AppShadows {
+  /// Soft ambient lift for elevated cards on the dark canvas.
+  static const List<BoxShadow> card = [
+    BoxShadow(
+      color: Color(0x40000000),
+      blurRadius: 24,
+      offset: Offset(0, 12),
+    ),
+  ];
+
+  /// Brand glow for the balance hero / primary CTAs. Pass the leading accent
+  /// color (defaults to emerald).
+  static List<BoxShadow> glow([Color color = AppColors.accent]) => [
+        BoxShadow(
+          color: color.withValues(alpha: 0.35),
+          blurRadius: 32,
+          spreadRadius: -8,
+          offset: const Offset(0, 12),
+        ),
+      ];
+}
+
 class AppMotion {
   static const Duration instant = Duration(milliseconds: 100);
   static const Duration fast = Duration(milliseconds: 150);
@@ -53,10 +84,31 @@ class AppColors {
   static const Color textMuted = Color(0xFF6B7280);
   static const Color textOnAccent = Color(0xFF00150A);
 
-  // Brand / accent (single emerald)
+  // Brand / accent (emerald base + lime highlight)
   static const Color accent = Color(0xFF00D26A);
   static const Color accentDim = Color(0xFF008F47);
   static const Color accentSoft = Color(0x3300D26A);
+
+  /// Bright lime highlight — used for the active pill, donut emphasis and the
+  /// far end of the brand gradient (the "pop" in the reference).
+  static const Color lime = Color(0xFFB6FF3C);
+  static const Color limeSoft = Color(0x33B6FF3C);
+
+  /// Secondary chart hue (cool indigo/blue) for multi-series breakdowns.
+  static const Color violet = Color(0xFF6C5CE7);
+
+  /// Brand gradient (emerald → lime). Used on the balance hero and CTAs.
+  static const List<Color> accentGradient = [Color(0xFF00D26A), Color(0xFFB6FF3C)];
+
+  /// Palette used to color category slices in the breakdown donut.
+  static const List<Color> categoryPalette = [
+    Color(0xFFB6FF3C), // lime
+    Color(0xFF00D26A), // emerald
+    Color(0xFF4DA8FF), // info blue
+    Color(0xFF6C5CE7), // violet
+    Color(0xFFFFB454), // warning amber
+    Color(0xFFFF5C7A), // danger rose
+  ];
 
   // Semantic
   static const Color success = Color(0xFF00D26A);
@@ -70,6 +122,40 @@ class AppColors {
   // Skeleton / shimmer
   static const Color skeletonBase = Color(0xFF1B2128);
   static const Color skeletonHighlight = Color(0xFF252D38);
+}
+
+/// Icon + color for a spending category. Pair with
+/// `Budget.getCategoryFromMerchant`, which produces the canonical category
+/// names this maps. Centralizes the icon/color choices that used to be
+/// hand-rolled inside individual screens.
+@immutable
+class CategoryVisual {
+  const CategoryVisual(this.icon, this.color);
+  final IconData icon;
+  final Color color;
+}
+
+class CategoryVisuals {
+  const CategoryVisuals._();
+
+  static const Map<String, CategoryVisual> _byName = {
+    'Transfer': CategoryVisual(Icons.swap_horiz, AppColors.violet),
+    'Utilities': CategoryVisual(Icons.flash_on, AppColors.warning),
+    'Food & Dining': CategoryVisual(Icons.restaurant, Color(0xFFFFB454)),
+    'Transportation': CategoryVisual(Icons.directions_car, AppColors.info),
+    'Shopping': CategoryVisual(Icons.shopping_bag, AppColors.violet),
+    'Entertainment': CategoryVisual(Icons.movie, AppColors.accent),
+    'Healthcare': CategoryVisual(Icons.local_hospital, AppColors.danger),
+    'Income': CategoryVisual(Icons.arrow_downward, AppColors.success),
+  };
+
+  static const CategoryVisual _fallback =
+      CategoryVisual(Icons.receipt, AppColors.info);
+
+  /// Look up the visual for a canonical category name. Unknown names fall back
+  /// to a neutral receipt icon.
+  static CategoryVisual forName(String category) =>
+      _byName[category] ?? _fallback;
 }
 
 /// Theme extension exposing tokens that don't fit neatly in `ColorScheme`.

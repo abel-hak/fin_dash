@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
+import 'package:sms_transaction_app/data/models/budget.dart';
+import 'package:sms_transaction_app/data/models/parsed_tx.dart';
+import 'package:sms_transaction_app/domain/transaction_rules.dart';
 import 'package:sms_transaction_app/features/dashboard/widgets/app_drawer.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
@@ -33,122 +39,50 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
+    final t = context.theming;
     final transactions = ref.watch(parsedTransactionsProvider);
-    
-    // Get real balance from transactions
-    final totalBalance = transactions.when(
-      data: (txs) {
-        if (txs.isEmpty) return 0.0;
-        final txWithBalance = txs.where((tx) => tx.balance != null).toList();
-        if (txWithBalance.isEmpty) return 0.0;
-        return txWithBalance.first.balance ?? 0.0;
-      },
-      loading: () => 0.0,
-      error: (_, __) => 0.0,
-    );
+    final currencyFormat =
+        NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: t.canvas,
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Total Balance',
-              style: TextStyle(
-                color: Colors.black54,
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              currencyFormat.format(totalBalance),
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: () {},
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.cyan,
-              child: const Text('JD', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddTransactionDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('Add'),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Transactions',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddTransactionDialog(),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add Transaction'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.cyan,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'View and manage all your financial transactions',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              color: t.canvas,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.l,
+                AppSpacing.xl,
+                AppSpacing.xl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ScreenHeader(
+                    title: 'Activity',
+                    subtitle:
+                        'Your transaction history — approved and synced only',
                   ),
-                ),
-                const SizedBox(height: 20),
-                
+                  const SizedBox(height: AppSpacing.xl),
+
                 // Search Bar
                 TextField(
                   controller: _searchController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Search transactions...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.black54),
-                    filled: true,
-                    fillColor: Colors.grey.shade100,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    prefixIcon: Icon(Icons.search),
                   ),
                 ),
-                const SizedBox(height: 16),
-                
+                const SizedBox(height: AppSpacing.l),
+
                 // Filter Buttons and Actions
                 Row(
                   children: [
@@ -156,37 +90,31 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             _buildFilterChip('All'),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: AppSpacing.s),
                             _buildFilterChip('Income'),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: AppSpacing.s),
                             _buildFilterChip('Expenses'),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.filter_list),
+                    const SizedBox(width: AppSpacing.s),
+                    _buildActionButton(
+                      icon: Icons.filter_list,
                       onPressed: () => _showBankFilterDialog(),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.grey.shade100,
-                      ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.date_range),
+                    const SizedBox(width: AppSpacing.s),
+                    _buildActionButton(
+                      icon: Icons.date_range,
                       onPressed: () => _showDateRangePicker(),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.grey.shade100,
-                      ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.download),
+                    const SizedBox(width: AppSpacing.s),
+                    _buildActionButton(
+                      icon: Icons.download,
                       onPressed: () => _exportTransactions(),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.grey.shade100,
-                      ),
                     ),
                   ],
                 ),
@@ -203,19 +131,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 
                 if (filteredTx.isEmpty) {
                   return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.receipt_long, size: 64, color: Colors.black26),
-                        SizedBox(height: 16),
-                        Text(
-                          'No transactions yet',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
+                    child: AppEmptyState(
+                      icon: Icons.receipt_long_rounded,
+                      title: 'No activity yet',
+                      message:
+                          'Approved and synced transactions show up here. '
+                          'New SMS messages appear in Inbox first.',
                     ),
                   );
                 }
@@ -231,31 +152,33 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(AppSpacing.xl),
                   itemCount: groupedTx.length,
                   itemBuilder: (context, index) {
                     final date = groupedTx.keys.elementAt(index);
                     final dayTransactions = groupedTx[date]!;
-                    
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: EdgeInsets.only(bottom: 16, top: index == 0 ? 0 : 24),
+                          padding: EdgeInsets.only(
+                            bottom: AppSpacing.l,
+                            top: index == 0 ? 0 : AppSpacing.xxl,
+                          ),
                           child: Text(
                             _formatDate(date),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black54,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: t.textSecondary,
+                                ),
                           ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        AppCard(
+                          padding: EdgeInsets.zero,
                           child: Column(
                             children: dayTransactions.asMap().entries.map((entry) {
                               final txIndex = entry.key;
@@ -264,7 +187,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                                 children: [
                                   _buildTransactionItem(tx, currencyFormat),
                                   if (txIndex < dayTransactions.length - 1)
-                                    Divider(height: 1, color: Colors.grey.shade200),
+                                    Container(height: 1, color: t.border),
                                 ],
                               );
                             }).toList(),
@@ -277,18 +200,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text('Error: $error'),
-                  ],
+                child: AppErrorState(
+                  title: 'Something went wrong',
+                  message: '$error',
                 ),
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -298,27 +218,45 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
+      showCheckmark: false,
       onSelected: (selected) {
         setState(() {
           _selectedFilter = label;
         });
       },
-      backgroundColor: Colors.grey.shade100,
-      selectedColor: Colors.cyan,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
-      checkmarkColor: Colors.white,
     );
   }
 
-  Widget _buildTransactionItem(dynamic tx, NumberFormat currencyFormat) {
-    final isIncome = tx.merchant.toLowerCase().contains('salary');
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    final t = context.theming;
+    return IconButton(
+      icon: Icon(icon),
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: t.surfaceElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.m),
+          side: BorderSide(color: t.border),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionItem(ParsedTransaction tx, NumberFormat currencyFormat) {
+    final t = context.theming;
+    final isIncome = TransactionRules.isIncomeMerchant(tx.merchant);
+    final tone = isIncome ? AppColors.success : AppColors.danger;
     final category = _getCategory(tx.merchant, tx.reason);
-    
+    final Color categoryColor = category['color'] as Color;
+    final statusLabel = tx.status == TransactionStatus.synced ? 'Synced' : 'Approved';
+    final statusColor =
+        tx.status == TransactionStatus.synced ? AppColors.success : AppColors.info;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.l),
       child: Row(
         children: [
           // Icon
@@ -326,17 +264,17 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isIncome ? Colors.green.shade50 : Colors.red.shade50,
-              borderRadius: BorderRadius.circular(8),
+              color: tone.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(AppRadii.m),
             ),
             child: Icon(
-              isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-              color: isIncome ? Colors.green : Colors.red,
+              isIncome ? Icons.south_west_rounded : Icons.north_east_rounded,
+              color: tone,
               size: 20,
             ),
           ),
-          const SizedBox(width: 12),
-          
+          const SizedBox(width: AppSpacing.m),
+
           // Transaction details
           Expanded(
             child: Column(
@@ -344,70 +282,89 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               children: [
                 Text(
                   tx.merchant,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
+                  style: Theme.of(context).textTheme.titleSmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpacing.xs),
                 Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       tx.sender,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: t.textSecondary),
+                    ),
+                    Text(
+                      '•',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: t.textMuted),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s, vertical: AppSpacing.xxs),
+                      decoration: BoxDecoration(
+                        color: categoryColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadii.xs),
+                      ),
+                      child: Text(
+                        category['name'],
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: categoryColor,
+                            ),
                       ),
                     ),
                     Text(
                       '•',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black45,
-                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: t.textMuted),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s, vertical: AppSpacing.xxs),
                       decoration: BoxDecoration(
-                        color: category['color'].withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadii.xs),
                       ),
                       child: Text(
-                        category['name'],
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: category['color'],
-                        ),
+                        statusLabel,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: statusColor,
+                            ),
                       ),
                     ),
                     if (isIncome) ...[
                       Text(
                         '•',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black45,
-                        ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: t.textMuted),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.s, vertical: AppSpacing.xxs),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(4),
+                          color: AppColors.info.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppRadii.xs),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Recurring',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.blue,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.info,
+                                  ),
                         ),
                       ),
                     ],
@@ -416,88 +373,29 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               ],
             ),
           ),
-          
+
           // Amount
-          Text(
-            '${isIncome ? '+' : '-'}${currencyFormat.format(tx.amount)}',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: isIncome ? Colors.green : Colors.red,
-            ),
+          AmountText(
+            amount: tx.amount,
+            currency: 'ETB',
+            kind: isIncome ? AmountKind.income : AmountKind.expense,
+            style: Theme.of(context).textTheme.titleSmall,
           ),
         ],
       ),
     );
   }
 
+  /// Resolves a transaction's display category. Category *naming* lives in the
+  /// shared `Budget.getCategoryFromMerchant` rules (also used by the dashboard
+  /// and budgets), and the icon/color come from `CategoryVisuals`, so this
+  /// screen no longer carries its own divergent copy of the mapping.
   Map<String, dynamic> _getCategory(String merchant, String? reason) {
-    // Priority 1: Check reason field first (most accurate)
-    if (reason != null && reason.isNotEmpty) {
-      final lowerReason = reason.toLowerCase();
-      
-      // Transfer
-      if (lowerReason.contains('transfer') || lowerReason.contains('fund transfer')) {
-        return {'name': 'Transfer', 'icon': Icons.swap_horiz, 'color': Colors.indigo};
-      }
-      
-      // Utilities (Internet, Bills, etc.)
-      if (lowerReason.contains('internet') || lowerReason.contains('data') || 
-          lowerReason.contains('package') || lowerReason.contains('electric') || 
-          lowerReason.contains('bill payment')) {
-        return {'name': 'Utilities', 'icon': Icons.flash_on, 'color': Colors.amber};
-      }
-      
-      // Food & Dining
-      if (lowerReason.contains('food') || lowerReason.contains('restaurant') || 
-          lowerReason.contains('lunch') || lowerReason.contains('cafe') || 
-          lowerReason.contains('coffee')) {
-        return {'name': 'Food & Dining', 'icon': Icons.restaurant, 'color': Colors.orange};
-      }
-      
-      // Transportation
-      if (lowerReason.contains('ride') || lowerReason.contains('taxi') || 
-          lowerReason.contains('transport') || lowerReason.contains('fuel')) {
-        return {'name': 'Transportation', 'icon': Icons.directions_car, 'color': Colors.blue};
-      }
-      
-      // Shopping
-      if (lowerReason.contains('shop') || lowerReason.contains('purchase') || 
-          lowerReason.contains('buy')) {
-        return {'name': 'Shopping', 'icon': Icons.shopping_bag, 'color': Colors.purple};
-      }
-      
-      // Entertainment
-      if (lowerReason.contains('movie') || lowerReason.contains('entertainment') || 
-          lowerReason.contains('game')) {
-        return {'name': 'Entertainment', 'icon': Icons.movie, 'color': Colors.teal};
-      }
-      
-      // Healthcare
-      if (lowerReason.contains('health') || lowerReason.contains('hospital') || 
-          lowerReason.contains('pharmacy') || lowerReason.contains('doctor')) {
-        return {'name': 'Healthcare', 'icon': Icons.local_hospital, 'color': Colors.red};
-      }
-    }
-    
-    // Priority 2: Fallback to merchant name
-    final lowerMerchant = merchant.toLowerCase();
-    
-    if (lowerMerchant.contains('lunch') || lowerMerchant.contains('food') || lowerMerchant.contains('restaurant')) {
-      return {'name': 'Food & Dining', 'icon': Icons.restaurant, 'color': Colors.orange};
-    } else if (lowerMerchant.contains('ride') || lowerMerchant.contains('taxi') || lowerMerchant.contains('transport')) {
-      return {'name': 'Transportation', 'icon': Icons.directions_car, 'color': Colors.blue};
-    } else if (lowerMerchant.contains('salary') || lowerMerchant.contains('income')) {
-      return {'name': 'Income', 'icon': Icons.arrow_downward, 'color': Colors.green};
-    } else if (lowerMerchant.contains('electric') || lowerMerchant.contains('bill') || lowerMerchant.contains('utilities')) {
-      return {'name': 'Utilities', 'icon': Icons.flash_on, 'color': Colors.amber};
-    } else if (lowerMerchant.contains('shop') || lowerMerchant.contains('clothing') || lowerMerchant.contains('market')) {
-      return {'name': 'Shopping', 'icon': Icons.shopping_bag, 'color': Colors.purple};
-    } else if (lowerMerchant.contains('movie') || lowerMerchant.contains('entertainment') || lowerMerchant.contains('cinema')) {
-      return {'name': 'Entertainment', 'icon': Icons.movie, 'color': Colors.teal};
-    } else {
-      return {'name': 'Other', 'icon': Icons.receipt, 'color': Colors.grey};
-    }
+    final name = TransactionRules.isIncomeMerchant(merchant)
+        ? 'Income'
+        : Budget.getCategoryFromMerchant(merchant, reason: reason);
+    final visual = CategoryVisuals.forName(name);
+    return {'name': name, 'icon': visual.icon, 'color': visual.color};
   }
 
   String _formatDate(String dateStr) {
@@ -522,7 +420,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   
   // Apply all filters to transaction list
   List<dynamic> _applyFilters(List<dynamic> transactions) {
-    var filtered = transactions;
+    // Activity is the ledger — exclude items still in the inbox workflow.
+    var filtered = transactions
+        .where((tx) =>
+            tx.status == TransactionStatus.approved ||
+            tx.status == TransactionStatus.synced)
+        .toList();
     
     // Apply search filter
     if (_searchController.text.isNotEmpty) {
@@ -535,18 +438,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     
     // Apply income/expense filter
     if (_selectedFilter == 'Income') {
-      filtered = filtered.where((tx) {
-        return tx.merchant.toLowerCase().contains('salary') ||
-               tx.merchant.toLowerCase().contains('income') ||
-               tx.merchant.toLowerCase().contains('deposit');
-      }).toList();
+      filtered =
+          filtered.where((tx) => TransactionRules.isIncomeMerchant(tx.merchant)).toList();
     } else if (_selectedFilter == 'Expenses') {
-      filtered = filtered.where((tx) {
-        final merchant = tx.merchant.toLowerCase();
-        return !merchant.contains('salary') &&
-               !merchant.contains('income') &&
-               !merchant.contains('deposit');
-      }).toList();
+      filtered = filtered
+          .where((tx) => !TransactionRules.isIncomeMerchant(tx.merchant))
+          .toList();
     }
     
     // Apply bank filter
@@ -641,23 +538,31 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     }
   }
   
-  // Export transactions
-  void _exportTransactions() {
+  // Export the currently-filtered transactions to CSV via the share sheet.
+  Future<void> _exportTransactions() async {
+    final txAsync = ref.read(parsedTransactionsProvider);
+    final all = txAsync.valueOrNull;
+    if (all == null) return;
+
+    final filtered = _applyFilters(all).cast<ParsedTransaction>();
+    if (filtered.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No transactions to export.')),
+      );
+      return;
+    }
+
+    final ok =
+        await ref.read(exportServiceProvider).shareTransactionsCsv(filtered);
+    if (!mounted || ok) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Export feature coming soon! Will export to CSV/Excel.'),
-        backgroundColor: Colors.cyan,
-      ),
+      const SnackBar(content: Text('Export failed. Please try again.')),
     );
   }
-  
+
   // Show add transaction dialog
   void _showAddTransactionDialog() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Manual transaction entry coming soon!'),
-        backgroundColor: Colors.cyan,
-      ),
-    );
+    context.go('/manual-entry');
   }
 }

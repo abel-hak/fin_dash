@@ -321,34 +321,53 @@ class AppTheme {
     Color secondary,
     Color muted,
   ) {
-    const fontFamily = 'Inter'; // Falls back to system if not bundled.
-    TextStyle base(double size, FontWeight weight, {Color? color, double? height}) {
+    // Tabular figures keep monetary columns vertically aligned everywhere.
+    const numeric = <FontFeature>[FontFeature.tabularFigures()];
+
+    // Body / UI face.
+    TextStyle body(double size, FontWeight weight,
+        {Color? color, double? height}) {
       return TextStyle(
-        fontFamily: fontFamily,
+        fontFamily: AppFonts.body,
         fontSize: size,
         fontWeight: weight,
         color: color ?? primary,
         height: height,
         letterSpacing: -0.1,
+        fontFeatures: numeric,
+      );
+    }
+
+    // Techy display face — used for headlines and large numeric figures.
+    TextStyle display(double size, FontWeight weight,
+        {Color? color, double? height}) {
+      return TextStyle(
+        fontFamily: AppFonts.display,
+        fontSize: size,
+        fontWeight: weight,
+        color: color ?? primary,
+        height: height,
+        letterSpacing: -0.5,
+        fontFeatures: numeric,
       );
     }
 
     return TextTheme(
-      displayLarge: base(57, FontWeight.w700, height: 1.1),
-      displayMedium: base(45, FontWeight.w700, height: 1.1),
-      displaySmall: base(36, FontWeight.w700, height: 1.15),
-      headlineLarge: base(32, FontWeight.w700, height: 1.2),
-      headlineMedium: base(28, FontWeight.w600, height: 1.25),
-      headlineSmall: base(24, FontWeight.w600, height: 1.3),
-      titleLarge: base(20, FontWeight.w600, height: 1.3),
-      titleMedium: base(16, FontWeight.w600, height: 1.4),
-      titleSmall: base(14, FontWeight.w600, height: 1.4),
-      bodyLarge: base(16, FontWeight.w400, height: 1.5),
-      bodyMedium: base(14, FontWeight.w400, color: secondary, height: 1.5),
-      bodySmall: base(12, FontWeight.w400, color: muted, height: 1.5),
-      labelLarge: base(14, FontWeight.w500),
-      labelMedium: base(12, FontWeight.w500, color: secondary),
-      labelSmall: base(11, FontWeight.w500, color: muted),
+      displayLarge: display(57, FontWeight.w700, height: 1.05),
+      displayMedium: display(45, FontWeight.w700, height: 1.05),
+      displaySmall: display(36, FontWeight.w700, height: 1.1),
+      headlineLarge: display(32, FontWeight.w700, height: 1.15),
+      headlineMedium: display(28, FontWeight.w600, height: 1.2),
+      headlineSmall: display(24, FontWeight.w600, height: 1.25),
+      titleLarge: body(20, FontWeight.w600, height: 1.3),
+      titleMedium: body(16, FontWeight.w600, height: 1.4),
+      titleSmall: body(14, FontWeight.w600, height: 1.4),
+      bodyLarge: body(16, FontWeight.w400, height: 1.5),
+      bodyMedium: body(14, FontWeight.w400, color: secondary, height: 1.5),
+      bodySmall: body(12, FontWeight.w400, color: muted, height: 1.5),
+      labelLarge: body(14, FontWeight.w500),
+      labelMedium: body(12, FontWeight.w500, color: secondary),
+      labelSmall: body(11, FontWeight.w500, color: muted),
     );
   }
 

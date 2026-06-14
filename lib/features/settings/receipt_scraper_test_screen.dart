@@ -7,6 +7,8 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:http/io_client.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import '../../core/env_config.dart';
 
 class ReceiptScraperTestScreen extends StatefulWidget {
@@ -416,112 +418,76 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
 
   @override
   Widget build(BuildContext context) {
+    final t = context.theming;
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: t.canvas,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Receipt Scraper Test',
-          style: TextStyle(color: Colors.black87),
-        ),
+        title: const Text('Receipt Scraper Test'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            const Text(
+            Text(
               'Test SMS → Receipt Scraping',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
-            const SizedBox(height: 4),
-            const Text(
+            const SizedBox(height: AppSpacing.xs),
+            Text(
               'Paste SMS text containing receipt link',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
+              style: theme.textTheme.bodyMedium,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.l),
 
             // SSL Warning
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
+            AppCard(
+              color: AppColors.warningSoft,
+              borderColor: AppColors.warning,
+              padding: const EdgeInsets.all(AppSpacing.m),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber,
-                      color: Colors.orange.shade700, size: 20),
-                  const SizedBox(width: 12),
+                  const Icon(Icons.warning_amber,
+                      color: AppColors.warning, size: 20),
+                  const SizedBox(width: AppSpacing.m),
                   Expanded(
                     child: Text(
                       'SSL verification disabled for testing. This bypasses certificate errors.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange.shade900,
-                      ),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: t.textPrimary),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
 
             // URL Input
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+            AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'SMS Text',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                    style: theme.textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.m),
                   TextField(
                     controller: _smsController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText:
                           'Paste your SMS message here...\n\nExample: Dear Customer, You have paid 100 ETB.\nReceipt: https://...',
-                      prefixIcon: const Icon(Icons.message),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
+                      prefixIcon: Icon(Icons.message),
                     ),
                     maxLines: 5,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.l),
                   Row(
                     children: [
                       Expanded(
@@ -533,24 +499,16 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                                   height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: AppColors.textOnAccent,
                                   ),
                                 )
                               : const Icon(Icons.search),
                           label: Text(_isLoading
                               ? 'Processing...'
                               : 'Extract & Scrape'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.cyan,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.m),
                       IconButton(
                         onPressed: () {
                           Clipboard.getData(Clipboard.kTextPlain).then((data) {
@@ -561,7 +519,7 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                         },
                         icon: const Icon(Icons.paste),
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: t.surfaceElevated,
                         ),
                         tooltip: 'Paste from clipboard',
                       ),
@@ -570,106 +528,89 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
 
             // Extracted Link Display
             if (_extractedLink != null && _detectedBank != null) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
+              AppCard(
+                color: AppColors.accentSoft,
+                borderColor: AppColors.success,
+                padding: const EdgeInsets.all(AppSpacing.l),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.check_circle,
-                            color: Colors.green.shade700, size: 20),
-                        const SizedBox(width: 8),
-                        const Text(
+                        const Icon(Icons.check_circle,
+                            color: AppColors.success, size: 20),
+                        const SizedBox(width: AppSpacing.s),
+                        Text(
                           'Receipt Link Found!',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
+                          style: theme.textTheme.titleSmall,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.m),
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           'Bank: ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
+                          style: theme.textTheme.labelMedium,
                         ),
                         Text(
                           _detectedBank!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.green.shade900,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: theme.textTheme.labelMedium
+                              ?.copyWith(color: AppColors.success),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
+                    const SizedBox(height: AppSpacing.s),
+                    Text(
                       'Link:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
+                      style: theme.textTheme.labelMedium,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(AppSpacing.s),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
+                        color: t.surfaceElevated,
+                        borderRadius: BorderRadius.circular(AppRadii.s),
                       ),
                       child: SelectableText(
                         _extractedLink!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontFamily: 'monospace',
+                          color: t.textPrimary,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.l),
             ],
 
             // Error Display
             if (_error != null) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
+              AppCard(
+                color: AppColors.dangerSoft,
+                borderColor: AppColors.danger,
+                padding: const EdgeInsets.all(AppSpacing.l),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, color: Colors.red),
-                    const SizedBox(width: 12),
+                    const Icon(Icons.error_outline, color: AppColors.danger),
+                    const SizedBox(width: AppSpacing.m),
                     Expanded(
                       child: Text(
                         _error!,
-                        style: TextStyle(color: Colors.red.shade900),
+                        style: TextStyle(color: t.textPrimary),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
             ],
 
             // Scraped Data Display
@@ -677,52 +618,41 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
               // PDF Detection Message
               if (_scrapedData!['content_type'] == 'PDF') ...[
                 // PDF Header
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
+                AppCard(
+                  color: AppColors.infoSoft,
+                  borderColor: AppColors.info,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.picture_as_pdf,
-                              color: Colors.blue.shade700, size: 32),
-                          const SizedBox(width: 12),
+                          const Icon(Icons.picture_as_pdf,
+                              color: AppColors.info, size: 32),
+                          const SizedBox(width: AppSpacing.m),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'PDF Receipt - AI Parsed',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
+                                  style: theme.textTheme.titleLarge,
                                 ),
                                 Text(
                                   'PDF Size: ${_scrapedData!['pdf_size']}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.black54,
-                                  ),
+                                  style: theme.textTheme.bodySmall,
                                 ),
                               ],
                             ),
                           ),
                           if (_scrapedData!['ai_parsed'] == true)
-                            Icon(Icons.check_circle,
-                                color: Colors.green, size: 24),
+                            const Icon(Icons.check_circle,
+                                color: AppColors.success, size: 24),
                         ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.l),
 
                 // Show PDF Text Button
                 if (_scrapedData!['pdf_text'] != null) ...[
@@ -765,43 +695,27 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                     icon: const Icon(Icons.text_fields),
                     label: const Text('View Extracted PDF Text'),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.l),
                 ],
 
                 // AI Extracted Data
                 if (_scrapedData!['ai_parsed'] == true) ...[
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
+                  AppCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.auto_awesome,
-                                color: Colors.purple, size: 20),
-                            const SizedBox(width: 8),
-                            const Text(
+                            const Icon(Icons.auto_awesome,
+                                color: AppColors.violet, size: 20),
+                            const SizedBox(width: AppSpacing.s),
+                            Text(
                               'AI Extracted Data',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                              style: theme.textTheme.titleLarge,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.l),
                         _buildDataRow(
                             'Transaction ID', _scrapedData!['transaction_id']),
                         _buildDataRow(
@@ -827,55 +741,47 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                     ),
                   ),
                 ] else if (_scrapedData!['ai_error'] != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
+                  AppCard(
+                    color: AppColors.dangerSoft,
+                    borderColor: AppColors.danger,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.error_outline, color: Colors.red),
-                            const SizedBox(width: 8),
-                            const Text(
+                            const Icon(Icons.error_outline,
+                                color: AppColors.danger),
+                            const SizedBox(width: AppSpacing.s),
+                            Text(
                               'AI Parsing Error',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                              style: theme.textTheme.titleSmall,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppSpacing.s),
                         Text(
                           _scrapedData!['ai_error'] ?? '',
-                          style: TextStyle(color: Colors.red.shade900),
+                          style: TextStyle(color: t.textPrimary),
                         ),
                         if (_scrapedData!['ai_raw_response'] != null) ...[
-                          const SizedBox(height: 12),
-                          const Text(
+                          const SizedBox(height: AppSpacing.m),
+                          Text(
                             'AI Raw Response:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                            style: theme.textTheme.labelMedium,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppSpacing.xs),
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(AppSpacing.s),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(8),
+                              color: t.surfaceElevated,
+                              borderRadius: BorderRadius.circular(AppRadii.s),
                             ),
                             child: SelectableText(
                               _scrapedData!['ai_raw_response'] ?? '',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 11,
+                                color: t.textSecondary,
                               ),
                             ),
                           ),
@@ -884,33 +790,27 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                     ),
                   ),
                 ] else if (_scrapedData!['error'] != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
+                  AppCard(
+                    color: AppColors.warningSoft,
+                    borderColor: AppColors.warning,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.warning_amber, color: Colors.orange),
-                            const SizedBox(width: 8),
-                            const Text(
+                            const Icon(Icons.warning_amber,
+                                color: AppColors.warning),
+                            const SizedBox(width: AppSpacing.s),
+                            Text(
                               'Extraction Error',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                              style: theme.textTheme.titleSmall,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppSpacing.s),
                         Text(
                           _scrapedData!['error'] ?? '',
-                          style: TextStyle(color: Colors.orange.shade900),
+                          style: TextStyle(color: t.textPrimary),
                         ),
                       ],
                     ),
@@ -918,37 +818,22 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                 ],
               ] else ...[
                 // HTML Data - Main Data
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
+                AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.check_circle, color: Colors.green),
-                          const SizedBox(width: 8),
-                          const Text(
+                          const Icon(Icons.check_circle,
+                              color: AppColors.success),
+                          const SizedBox(width: AppSpacing.s),
+                          Text(
                             'Extracted Data',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                            style: theme.textTheme.titleLarge,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.l),
                       _buildDataRow(
                           'Transaction ID', _scrapedData!['transaction_id']),
                       _buildDataRow('Payer Name', _scrapedData!['payer_name']),
@@ -976,43 +861,27 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.l),
 
                 // Table Data
                 if (_scrapedData!['table_data'] != null &&
                     (_scrapedData!['table_data'] as Map).isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
+                  AppCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Table Data',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
+                          style: theme.textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppSpacing.m),
                         ...(_scrapedData!['table_data'] as Map<String, String>)
                             .entries
                             .map((e) => _buildDataRow(e.key, e.value)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.l),
                 ],
 
                 // Raw HTML Toggle
@@ -1028,28 +897,21 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                 ),
 
                 if (_showRawHtml && _rawHtml != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade900,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  const SizedBox(height: AppSpacing.s),
+                  AppCard(
+                    color: t.surfaceElevated,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'Raw HTML',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: theme.textTheme.titleSmall,
                             ),
                             IconButton(
-                              icon: const Icon(Icons.copy, color: Colors.white),
+                              icon: Icon(Icons.copy, color: t.textSecondary),
                               onPressed: () {
                                 Clipboard.setData(
                                     ClipboardData(text: _rawHtml!));
@@ -1062,13 +924,13 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppSpacing.s),
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: SelectableText(
                             _rawHtml!,
                             style: const TextStyle(
-                              color: Colors.greenAccent,
+                              color: AppColors.accent,
                               fontFamily: 'monospace',
                               fontSize: 12,
                             ),
@@ -1087,10 +949,11 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
   }
 
   Widget _buildDataRow(String label, dynamic value) {
+    final t = context.theming;
     final hasValue = value != null && value.toString().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppSpacing.m),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1098,9 +961,9 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
             width: 140,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: t.textSecondary,
               ),
             ),
           ),
@@ -1110,14 +973,14 @@ If a field is not found, use null. Return ONLY the JSON object, nothing else.
                 Icon(
                   hasValue ? Icons.check_circle : Icons.cancel,
                   size: 16,
-                  color: hasValue ? Colors.green : Colors.red,
+                  color: hasValue ? AppColors.success : AppColors.danger,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.s),
                 Expanded(
                   child: Text(
                     hasValue ? value.toString() : 'Not found',
                     style: TextStyle(
-                      color: hasValue ? Colors.black87 : Colors.red,
+                      color: hasValue ? t.textPrimary : AppColors.danger,
                       fontWeight:
                           hasValue ? FontWeight.w600 : FontWeight.normal,
                     ),

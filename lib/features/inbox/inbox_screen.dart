@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import 'package:sms_transaction_app/data/models/parsed_tx.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 import 'package:sms_transaction_app/features/dashboard/widgets/app_drawer.dart';
@@ -15,156 +17,94 @@ class InboxScreen extends ConsumerStatefulWidget {
 
 class _InboxScreenState extends ConsumerState<InboxScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
-  
+
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
   }
-  
+
   void _refreshTransactions() {
     ref.invalidate(parsedTransactionsProvider);
     ref.invalidate(pendingTransactionsProvider);
     ref.invalidate(approvedTransactionsProvider);
   }
-  
+
   @override
   Widget build(BuildContext context) {
+    final t = context.theming;
+
     // Get transaction counts for dynamic tab labels
-    final allTransactions = ref.watch(parsedTransactionsProvider);
     final pendingTransactions = ref.watch(pendingTransactionsProvider);
     final approvedTransactions = ref.watch(approvedTransactionsProvider);
-    
-    final allCount = allTransactions.maybeWhen(data: (txs) => txs.length, orElse: () => 0);
-    final pendingCount = pendingTransactions.maybeWhen(data: (txs) => txs.length, orElse: () => 0);
-    final approvedCount = approvedTransactions.maybeWhen(data: (txs) => txs.length, orElse: () => 0);
-    
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
-    
-    // Get real balance from transactions
-    final totalBalance = allTransactions.when(
-      data: (txs) {
-        if (txs.isEmpty) return 0.0;
-        final txWithBalance = txs.where((tx) => tx.balance != null).toList();
-        if (txWithBalance.isEmpty) return 0.0;
-        return txWithBalance.first.balance ?? 0.0;
-      },
-      loading: () => 0.0,
-      error: (_, __) => 0.0,
-    );
-    
+
+    final pendingCount =
+        pendingTransactions.maybeWhen(data: (txs) => txs.length, orElse: () => 0);
+    final approvedCount =
+        approvedTransactions.maybeWhen(data: (txs) => txs.length, orElse: () => 0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: t.canvas,
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.go('/manual-entry'),
+        icon: const Icon(Icons.add),
+        label: const Text('Add SMS'),
+      ),
+      body: SafeArea(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Total Balance',
-              style: TextStyle(
-                color: Colors.black54,
-                fontSize: 12,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.l,
+                AppSpacing.xl,
+                0,
+              ),
+              child: ScreenHeader(
+                title: 'Inbox',
+                subtitle: 'Review and approve new SMS transactions',
               ),
             ),
-            Text(
-              currencyFormat.format(totalBalance),
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+            const SizedBox(height: AppSpacing.l),
+            TabBar(
+              controller: _tabController,
+              labelColor: AppColors.accent,
+              unselectedLabelColor: t.textSecondary,
+              indicatorColor: AppColors.accent,
+              indicatorWeight: 3,
+              tabs: [
+                Tab(text: 'Needs review ($pendingCount)'),
+                Tab(text: 'Ready to sync ($approvedCount)'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildTransactionList(TransactionStatus.pending),
+                  _buildTransactionList(TransactionStatus.approved),
+                ],
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: () {},
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.cyan,
-              child: const Text('JD', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(110),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'SMS Inbox',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => context.go('/manual-entry'),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.cyan,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              TabBar(
-                controller: _tabController,
-                labelColor: Colors.cyan,
-                unselectedLabelColor: Colors.black54,
-                indicatorColor: Colors.cyan,
-                indicatorWeight: 3,
-                tabs: [
-                  Tab(text: 'All ($allCount)'),
-                  Tab(text: 'Pending ($pendingCount)'),
-                  Tab(text: 'Approved ($approvedCount)'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildTransactionList(null),
-          _buildTransactionList(TransactionStatus.pending),
-          _buildTransactionList(TransactionStatus.approved),
-        ],
       ),
     );
   }
-  
-  Widget _buildTransactionList(TransactionStatus? status) {
-    final transactionsAsyncValue = status == null
-        ? ref.watch(parsedTransactionsProvider)
-        : status == TransactionStatus.pending
-            ? ref.watch(pendingTransactionsProvider)
-            : ref.watch(approvedTransactionsProvider);
-    
+
+  Widget _buildTransactionList(TransactionStatus status) {
+    final transactionsAsyncValue = status == TransactionStatus.pending
+        ? ref.watch(pendingTransactionsProvider)
+        : ref.watch(approvedTransactionsProvider);
+
     return RefreshIndicator(
       onRefresh: () async {
         _refreshTransactions();
@@ -174,47 +114,33 @@ class _InboxScreenState extends ConsumerState<InboxScreen> with SingleTickerProv
       child: transactionsAsyncValue.when(
       data: (transactions) {
         if (transactions.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.inbox_outlined,
-                  size: 64,
-                  color: Colors.grey,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  status == null
-                      ? 'No transactions yet'
-                      : status == TransactionStatus.pending
-                          ? 'No pending transactions'
-                          : 'No approved transactions',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Transactions will appear here when detected',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
+          return ListView(
+            children: [
+              const SizedBox(height: AppSpacing.huge),
+              AppEmptyState(
+                icon: Icons.inbox_outlined,
+                title: status == TransactionStatus.pending
+                    ? 'Nothing to review'
+                    : 'Nothing ready to sync',
+                message: status == TransactionStatus.pending
+                    ? 'New SMS transactions will appear here for you to approve.'
+                    : 'Approved transactions waiting to sync will show here.',
+                actionLabel: status == TransactionStatus.pending ? 'Add SMS' : null,
+                onAction: status == TransactionStatus.pending
+                    ? () => context.go('/manual-entry')
+                    : null,
+              ),
+            ],
           );
         }
-        
+
         return ListView.builder(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppSpacing.xl),
           itemCount: transactions.length,
           itemBuilder: (context, index) {
             final transaction = transactions[index];
             return Container(
-              margin: const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: AppSpacing.m),
               child: TransactionItem(
                 transaction: transaction,
                 onTap: () => context.go('/review/${transaction.id}'),
@@ -226,34 +152,14 @@ class _InboxScreenState extends ConsumerState<InboxScreen> with SingleTickerProv
       loading: () => const Center(
         child: CircularProgressIndicator(),
       ),
-      error: (error, stackTrace) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Error loading transactions',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+      error: (error, stackTrace) => ListView(
+        children: [
+          const SizedBox(height: AppSpacing.huge),
+          AppErrorState(
+            title: 'Error loading transactions',
+            message: error.toString(),
+          ),
+        ],
       ),
       ),
     );
@@ -272,171 +178,181 @@ class TransactionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.theming;
+    final theme = Theme.of(context);
     final dateFormat = DateFormat('dd MMM yyyy HH:mm');
     final dateTime = DateTime.parse(transaction.occurredAt);
     final formattedDate = dateFormat.format(dateTime);
-    
-    // Determine confidence indicator color
     Color confidenceColor;
     if (transaction.confidence >= 0.9) {
-      confidenceColor = Colors.green;
+      confidenceColor = AppColors.success;
     } else if (transaction.confidence >= 0.7) {
-      confidenceColor = Colors.orange;
+      confidenceColor = AppColors.warning;
     } else {
-      confidenceColor = Colors.red;
+      confidenceColor = AppColors.danger;
     }
-    
+
     final confidencePercentage = (transaction.confidence * 100).toInt();
-    
-    return InkWell(
+
+    return AppCard(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Merchant name and tag
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        transaction.merchant,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              transaction.channel,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            transaction.sender,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Amount
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Merchant name and tag
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${transaction.currency} ${transaction.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                      transaction.merchant,
+                      style: theme.textTheme.titleMedium,
                     ),
-                    if (transaction.balance != null)
-                      Text(
-                        'Balance: ${transaction.balance!.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        _InboxStatusChip(status: transaction.status),
+                        const SizedBox(width: AppSpacing.s),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.s,
+                            vertical: AppSpacing.xxs,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.warningSoft,
+                            borderRadius: BorderRadius.circular(AppRadii.xs),
+                          ),
+                          child: Text(
+                            transaction.channel,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.warning,
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            // Date and confidence
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.access_time,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      formattedDate,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                        const SizedBox(width: AppSpacing.s),
+                        Text(
+                          transaction.sender,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                
-                // Confidence indicator
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
+              ),
+
+              // Amount
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  AmountText(
+                    amount: transaction.amount,
+                    currency: transaction.currency,
+                    kind: AmountKind.neutral,
                   ),
-                  decoration: BoxDecoration(
-                    color: confidenceColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                  if (transaction.balance != null)
+                    Text(
+                      'Balance: ${transaction.balance!.toStringAsFixed(2)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: t.textMuted,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.m),
+
+          // Date and confidence
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.touch_app_outlined,
+                    size: 14,
+                    color: AppColors.accent,
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 12,
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Tap to review • $formattedDate',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+
+              // Confidence indicator
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s,
+                  vertical: AppSpacing.xxs,
+                ),
+                decoration: BoxDecoration(
+                  color: confidenceColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppRadii.m),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      size: 12,
+                      color: confidenceColor,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '$confidencePercentage%',
+                      style: theme.textTheme.labelSmall?.copyWith(
                         color: confidenceColor,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$confidencePercentage%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: confidenceColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InboxStatusChip extends StatelessWidget {
+  const _InboxStatusChip({required this.status});
+
+  final TransactionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      TransactionStatus.pending => ('Pending', AppColors.warning),
+      TransactionStatus.approved => ('Approved', AppColors.info),
+      TransactionStatus.synced => ('Synced', AppColors.success),
+      TransactionStatus.ignored => ('Ignored', AppColors.danger),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s,
+        vertical: AppSpacing.xxs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
-          ],
-        ),
       ),
     );
   }

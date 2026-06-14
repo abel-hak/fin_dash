@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import 'package:sms_transaction_app/features/dashboard/widgets/app_drawer.dart';
 import 'package:sms_transaction_app/features/budgets/widgets/create_budget_sheet.dart';
 import 'package:sms_transaction_app/features/budgets/widgets/edit_budget_sheet.dart';
@@ -13,22 +14,9 @@ class BudgetsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
+    final t = context.theming;
     final budgetsAsync = ref.watch(budgetsProvider);
-    final transactionsAsync = ref.watch(parsedTransactionsProvider);
-    
-    // Get real balance from transactions
-    final totalBalance = transactionsAsync.when(
-      data: (transactions) {
-        if (transactions.isEmpty) return 0.0;
-        final txWithBalance = transactions.where((tx) => tx.balance != null).toList();
-        if (txWithBalance.isEmpty) return 0.0;
-        return txWithBalance.first.balance ?? 0.0;
-      },
-      loading: () => 0.0,
-      error: (_, __) => 0.0,
-    );
-    
+
     // Calculate summary stats
     final summaryStats = budgetsAsync.when(
       data: (budgets) {
@@ -42,170 +30,89 @@ class BudgetsScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: t.canvas,
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Total Balance',
-              style: TextStyle(
-                color: Colors.black54,
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              currencyFormat.format(totalBalance),
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: () => context.go('/inbox'),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.cyan,
-              child: const Text('JD', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openCreateSheet(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Budget'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Budget Management',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Track and manage your spending limits',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final result = await showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => const CreateBudgetSheet(),
-                    );
-                    
-                    if (result == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Budget created successfully!'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Create Budget'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyan,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.l,
+            AppSpacing.xl,
+            AppSpacing.huge,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              ScreenHeader(
+                title: 'Budgets',
+                subtitle: 'Track and manage your spending limits',
+              ),
+              const SizedBox(height: AppSpacing.xxl),
 
             // Summary Cards - Real Data
             Row(
               children: [
                 Expanded(
-                  child: _buildSummaryCard(
+                  child: StatCard(
                     icon: Icons.pie_chart,
-                    iconColor: Colors.blue,
-                    title: 'Total Budgets',
+                    label: 'Total Budgets',
                     value: '${summaryStats['total']}',
-                    subtitle: 'Active this month',
+                    delta: 'Active this month',
+                    tone: StatTone.neutral,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.m),
                 Expanded(
-                  child: _buildSummaryCard(
+                  child: StatCard(
                     icon: Icons.check_circle,
-                    iconColor: Colors.green,
-                    title: 'On Track',
+                    label: 'On Track',
                     value: '${summaryStats['onTrack']}',
-                    subtitle: 'Under threshold',
+                    delta: 'Under threshold',
+                    tone: StatTone.positive,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.m),
                 Expanded(
-                  child: _buildSummaryCard(
+                  child: StatCard(
                     icon: Icons.warning,
-                    iconColor: Colors.orange,
-                    title: 'Needs Attention',
+                    label: 'Needs Attention',
                     value: '${summaryStats['needsAttention']}',
-                    subtitle: 'Over threshold',
+                    delta: 'Over threshold',
+                    tone: StatTone.negative,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
 
             // Budget Cards - Real Data
             budgetsAsync.when(
               data: (budgets) {
                 if (budgets.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Text(
-                        'No budgets found. Start spending to see budget tracking!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ),
+                  return AppEmptyState(
+                    icon: Icons.savings_outlined,
+                    title: 'No budgets yet',
+                    message:
+                        'Create a budget to track spending against monthly limits.',
+                    actionLabel: 'Create budget',
+                    onAction: () => _openCreateSheet(context),
                   );
                 }
-                
+
                 return Column(
                   children: budgets.map((budget) {
-                    final color = budget.isOverBudget 
-                        ? Colors.red 
-                        : budget.isNearLimit 
-                            ? Colors.orange 
-                            : Colors.cyan;
-                    
+                    final color = budget.isOverBudget
+                        ? AppColors.danger
+                        : budget.isNearLimit
+                            ? AppColors.warning
+                            : AppColors.accent;
+
                     return Column(
                       children: [
                         _buildBudgetCard(
@@ -214,75 +121,39 @@ class BudgetsScreen extends ConsumerWidget {
                           color: color,
                           ref: ref,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.l),
                       ],
                     );
                   }).toList(),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Text('Error loading budgets'),
+              error: (_, __) => const AppErrorState(
+                title: 'Error loading budgets',
+              ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSummaryCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    required String subtitle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.black45,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
+  Future<void> _openCreateSheet(BuildContext context) async {
+    final result = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CreateBudgetSheet(),
     );
+
+    if (result == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Budget created successfully!'),
+        ),
+      );
+    }
   }
 
   Widget _buildBudgetCard({
@@ -291,33 +162,27 @@ class BudgetsScreen extends ConsumerWidget {
     required Color color,
     required WidgetRef ref,
   }) {
+    final theme = Theme.of(context);
+    final t = context.theming;
     final percentage = budget.percentageInt;
     final progress = budget.percentage / 100;
     final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 0);
+    final onTrack = budget.status == 'On Track';
+    final statusColor = onTrack ? AppColors.success : AppColors.warning;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      radius: AppRadii.l,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(AppSpacing.s),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(AppRadii.s),
                 ),
                 child: Icon(
                   Icons.restaurant,
@@ -325,167 +190,105 @@ class BudgetsScreen extends ConsumerWidget {
                   size: 24,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.m),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       budget.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                      style: theme.textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.xxs),
                     Text(
                       'Monthly Budget',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+                      style: theme.textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s, vertical: AppSpacing.xs),
                 decoration: BoxDecoration(
-                  color: budget.status == 'On Track' ? Colors.green.shade50 : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(4),
+                  color: statusColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(AppRadii.xs),
                 ),
                 child: Text(
                   budget.status,
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: budget.status == 'On Track' ? Colors.green : Colors.orange,
+                    color: statusColor,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          
+          const SizedBox(height: AppSpacing.xl),
+
           // Progress Section
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Spent',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                ),
+                style: theme.textTheme.bodySmall,
               ),
               Text(
                 '${currencyFormat.format(budget.spent)} / ${currencyFormat.format(budget.limit)}',
-                style: const TextStyle(
-                  fontSize: 12,
+                style: theme.textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: t.textPrimary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(AppRadii.xs),
             child: LinearProgressIndicator(
               value: progress > 1 ? 1 : progress,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: t.surfaceElevated,
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 8,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s),
           Text(
             '$percentage% used • ${budget.daysLeft} days left',
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.black45,
-            ),
+            style: theme.textTheme.labelSmall,
           ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          
+          const SizedBox(height: AppSpacing.l),
+          Divider(height: 1, color: t.border),
+          const SizedBox(height: AppSpacing.l),
+
           // Details Section
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Remaining',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currencyFormat.format(budget.remaining),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                child: _buildDetailColumn(
+                  context,
+                  'Remaining',
+                  currencyFormat.format(budget.remaining),
                 ),
               ),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Daily Average',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currencyFormat.format(budget.dailyAverage),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                child: _buildDetailColumn(
+                  context,
+                  'Daily Average',
+                  currencyFormat.format(budget.dailyAverage),
                 ),
               ),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Projected Total',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currencyFormat.format(budget.projectedTotal),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                child: _buildDetailColumn(
+                  context,
+                  'Projected Total',
+                  currencyFormat.format(budget.projectedTotal),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.l),
           Row(
             children: [
               Expanded(
@@ -493,9 +296,6 @@ class BudgetsScreen extends ConsumerWidget {
                   onPressed: () {
                     _showBudgetDetailsDialog(context, budget);
                   },
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.cyan,
-                  ),
                   child: const Text('View Details'),
                 ),
               ),
@@ -504,7 +304,7 @@ class BudgetsScreen extends ConsumerWidget {
                   await _showEditBudgetDialog(context, budget, ref);
                 },
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.black54,
+                  foregroundColor: t.textSecondary,
                 ),
                 child: const Text('Edit'),
               ),
@@ -513,7 +313,7 @@ class BudgetsScreen extends ConsumerWidget {
                   await _showDeleteBudgetDialog(context, budget, ref);
                 },
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.red,
+                  foregroundColor: AppColors.danger,
                 ),
                 child: const Text('Delete'),
               ),
@@ -523,10 +323,28 @@ class BudgetsScreen extends ConsumerWidget {
       ),
     );
   }
-  
+
+  Widget _buildDetailColumn(BuildContext context, String label, String value) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          value,
+          style: theme.textTheme.titleMedium,
+        ),
+      ],
+    );
+  }
+
   void _showBudgetDetailsDialog(BuildContext context, Budget budget) {
     final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 0);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -552,10 +370,10 @@ class BudgetsScreen extends ConsumerWidget {
       ),
     );
   }
-  
+
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -565,7 +383,7 @@ class BudgetsScreen extends ConsumerWidget {
       ),
     );
   }
-  
+
   Future<void> _showEditBudgetDialog(BuildContext context, Budget budget, WidgetRef ref) async {
     final result = await showModalBottomSheet(
       context: context,
@@ -573,17 +391,16 @@ class BudgetsScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => EditBudgetSheet(budget: budget),
     );
-    
+
     if (result == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Budget updated successfully!'),
-          backgroundColor: Colors.green,
         ),
       );
     }
   }
-  
+
   Future<void> _showDeleteBudgetDialog(BuildContext context, Budget budget, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -597,30 +414,28 @@ class BudgetsScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
-    
+
     if (confirmed == true && context.mounted) {
       // Delete from database
       final db = ref.read(databaseHelperProvider);
       await db.deleteBudget(budget.id);
-      
+
       // Refresh provider
       ref.invalidate(budgetsProvider);
-      
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${budget.name} deleted successfully!'),
-            backgroundColor: Colors.red,
           ),
         );
       }
     }
   }
 }
-

@@ -8,7 +8,9 @@ import 'package:sms_transaction_app/data/models/budget.dart';
 import 'package:sms_transaction_app/data/models/goal.dart';
 import 'package:sms_transaction_app/domain/parser/sms_parser.dart';
 import 'package:sms_transaction_app/domain/templates/template_model.dart';
+import 'package:sms_transaction_app/domain/transaction_rules.dart';
 import 'package:sms_transaction_app/services/auth_service.dart';
+import 'package:sms_transaction_app/services/export_service.dart';
 import 'package:sms_transaction_app/services/permissions_service.dart';
 import 'package:sms_transaction_app/services/preferences_service.dart';
 import 'package:sms_transaction_app/services/sms_service.dart';
@@ -55,6 +57,11 @@ final userProvider = Provider<User?>((ref) {
 // Template service provider
 final templateServiceProvider = Provider<TemplateService>((ref) {
   return TemplateService();
+});
+
+// Export service provider
+final exportServiceProvider = Provider<ExportService>((ref) {
+  return const ExportService();
 });
 
 // Template registry provider
@@ -281,11 +288,9 @@ final budgetsProvider = FutureProvider<List<Budget>>((ref) async {
   final monthTransactions = transactions.where((tx) {
     try {
       final txDate = DateTime.parse(tx.occurredAt);
-      final isInMonth = txDate.isAfter(monthStart.subtract(const Duration(days: 1))) && 
+      final isInMonth = txDate.isAfter(monthStart.subtract(const Duration(days: 1))) &&
                         txDate.isBefore(monthEnd.add(const Duration(days: 1)));
-      final isExpense = !tx.merchant.toLowerCase().contains('salary') &&
-                        !tx.merchant.toLowerCase().contains('income') &&
-                        !tx.merchant.toLowerCase().contains('deposit');
+      final isExpense = !TransactionRules.isIncomeMerchant(tx.merchant);
       return isInMonth && isExpense;
     } catch (e) {
       return false;

@@ -1,99 +1,149 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
+import 'package:sms_transaction_app/features/dashboard/dashboard_logic.dart';
+import 'package:sms_transaction_app/services/providers.dart';
 
-class AiInsightsWidget extends StatelessWidget {
+/// Insights card driven by the user's real budgets, goals, and spending
+/// history (see [DashboardData.insights]). Token-driven so it inherits the dark
+/// theme. Shows a neutral prompt when there isn't enough data yet.
+class AiInsightsWidget extends ConsumerWidget {
   const AiInsightsWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budgets = ref.watch(budgetsProvider).valueOrNull ?? const [];
+    final goals = ref.watch(goalsProvider).valueOrNull ?? const [];
+    final txs = ref.watch(parsedTransactionsProvider).valueOrNull ?? const [];
+
+    final insights = DashboardData.insights(
+      budgets: budgets,
+      goals: goals,
+      txs: txs,
+    );
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'AI Insights',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          const SectionHeader(title: 'Insights'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.l,
+              AppSpacing.s,
+              AppSpacing.l,
+              AppSpacing.l,
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildInsightItem(
-            icon: Icons.lightbulb_outline,
-            iconColor: Colors.amber,
-            title: 'Boost on food spending!',
-            description: 'You\'re spending 15% more on food compared to last month. Consider meal planning.',
-          ),
-          const SizedBox(height: 16),
-          _buildInsightItem(
-            icon: Icons.warning_amber_outlined,
-            iconColor: Colors.orange,
-            title: 'Entertainment budget alert',
-            description: 'You are over 80% of your entertainment budget. Try to cut back on non-essentials.',
-          ),
-          const SizedBox(height: 16),
-          _buildInsightItem(
-            icon: Icons.trending_up,
-            iconColor: Colors.green,
-            title: 'Progress towards goal',
-            description: 'Great job! You\'re 60% towards your savings goal. Keep it up for the next month.',
+            child: insights.isEmpty
+                ? _EmptyInsight()
+                : Column(
+                    children: [
+                      for (var i = 0; i < insights.length; i++) ...[
+                        if (i > 0) const SizedBox(height: AppSpacing.l),
+                        _InsightItem(insight: insights[i]),
+                      ],
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildInsightItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String description,
-  }) {
+class _EmptyInsight extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final t = context.theming;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(AppSpacing.s),
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.info.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(AppRadii.s),
           ),
-          child: Icon(icon, color: iconColor, size: 20),
+          child: const Icon(Icons.insights_rounded,
+              color: AppColors.info, size: 20),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.m),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text('No insights yet', style: theme.textTheme.titleSmall),
+              const SizedBox(height: AppSpacing.xxs),
               Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                'Add budgets and goals, and keep logging transactions — '
+                'insights will appear here.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: t.textSecondary),
               ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                  height: 1.4,
-                ),
-              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InsightItem extends StatelessWidget {
+  const _InsightItem({required this.insight});
+
+  final DashboardInsight insight;
+
+  Color get _color {
+    switch (insight.tone) {
+      case InsightTone.positive:
+        return AppColors.accent;
+      case InsightTone.warning:
+        return AppColors.warning;
+      case InsightTone.danger:
+        return AppColors.danger;
+      case InsightTone.neutral:
+        return AppColors.info;
+    }
+  }
+
+  IconData get _icon {
+    switch (insight.tone) {
+      case InsightTone.positive:
+        return Icons.trending_up_rounded;
+      case InsightTone.warning:
+        return Icons.lightbulb_outline_rounded;
+      case InsightTone.danger:
+        return Icons.warning_amber_rounded;
+      case InsightTone.neutral:
+        return Icons.insights_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.s),
+          decoration: BoxDecoration(
+            color: _color.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(AppRadii.s),
+          ),
+          child: Icon(_icon, color: _color, size: 20),
+        ),
+        const SizedBox(width: AppSpacing.m),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(insight.title, style: theme.textTheme.titleSmall),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(insight.message, style: theme.textTheme.bodySmall),
             ],
           ),
         ),

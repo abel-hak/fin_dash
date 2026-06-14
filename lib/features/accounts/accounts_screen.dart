@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
+import 'package:sms_transaction_app/core/widgets/widgets.dart';
 import 'package:sms_transaction_app/features/dashboard/widgets/app_drawer.dart';
+import 'package:sms_transaction_app/features/shell/shell_navigation.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
 class AccountsScreen extends ConsumerWidget {
@@ -10,152 +13,97 @@ class AccountsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
+    final t = context.theming;
+    final theme = Theme.of(context);
+    final currencyFormat =
+        NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
     final accountsAsync = ref.watch(accountsProvider);
     final transactionsAsync = ref.watch(parsedTransactionsProvider);
-    
-    // Get real balance from transactions (most recent balance)
+
     final totalBalance = transactionsAsync.when(
       data: (transactions) {
         if (transactions.isEmpty) return 0.0;
-        final txWithBalance = transactions.where((tx) => tx.balance != null).toList();
+        final txWithBalance =
+            transactions.where((tx) => tx.balance != null).toList();
         if (txWithBalance.isEmpty) return 0.0;
         return txWithBalance.first.balance ?? 0.0;
       },
       loading: () => 0.0,
       error: (_, __) => 0.0,
     );
-    
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: t.canvas,
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Total Balance',
-              style: TextStyle(
-                color: Colors.black54,
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              currencyFormat.format(totalBalance),
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: () => context.go('/inbox'),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.l,
+            AppSpacing.xl,
+            AppSpacing.huge,
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.cyan,
-              child: const Text('JD', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Accounts',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Manage all of your financial accounts in one place',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Accounts are automatically detected from SMS. No manual add needed!'),
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Account'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.cyan,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              ScreenHeader(
+                title: 'Accounts',
+                subtitle: 'Manage all of your financial accounts in one place',
+              ),
+              const SizedBox(height: AppSpacing.l),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Accounts are automatically detected from SMS. No manual add needed!'),
+                        duration: Duration(seconds: 3),
                       ),
-                    ),
-                  ),
+                    );
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add Account'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
+              ),
+              const SizedBox(height: AppSpacing.xxl),
 
             // Summary Cards - Real Data
             accountsAsync.when(
               data: (accounts) {
                 final activeCount = accounts.length;
-                final lastSync = accounts.isNotEmpty 
+                final lastSync = accounts.isNotEmpty
                     ? _formatLastSync(accounts.first.lastSynced)
                     : 'Never';
-                
+
                 return Column(
                   children: [
-                    _buildSummaryCard(
+                    StatCard(
                       icon: Icons.account_balance_wallet,
-                      iconColor: Colors.cyan,
-                      title: 'Total Balance',
+                      label: 'Total Balance',
                       value: currencyFormat.format(totalBalance),
-                      subtitle: 'Across all accounts',
+                      delta: 'Across all accounts',
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.m),
                     Row(
                       children: [
                         Expanded(
-                          child: _buildSummaryCard(
+                          child: StatCard(
                             icon: Icons.check_circle,
-                            iconColor: Colors.green,
-                            title: 'Active Accounts',
+                            label: 'Active Accounts',
                             value: '$activeCount',
-                            subtitle: 'Currently connected',
+                            delta: 'Currently connected',
+                            tone: StatTone.positive,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpacing.m),
                         Expanded(
-                          child: _buildSummaryCard(
+                          child: StatCard(
                             icon: Icons.sync,
-                            iconColor: Colors.blue,
-                            title: 'Last Synced',
+                            label: 'Last Synced',
                             value: lastSync,
-                            subtitle: 'Most recent',
+                            delta: 'Most recent',
                           ),
                         ),
                       ],
@@ -164,22 +112,24 @@ class AccountsScreen extends ConsumerWidget {
                 );
               },
               loading: () => const CircularProgressIndicator(),
-              error: (_, __) => const Text('Error loading accounts'),
+              error: (error, __) => AppErrorState(
+                title: "Couldn't load accounts",
+                message: '$error',
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
 
             // Account Cards - Real Data
             accountsAsync.when(
               data: (accounts) {
                 if (accounts.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Text('No accounts found'),
-                    ),
+                  return const AppEmptyState(
+                    icon: Icons.account_balance_outlined,
+                    title: 'No accounts yet',
+                    message: 'Accounts are detected automatically from your transaction SMS.',
                   );
                 }
-                
+
                 return Column(
                   children: accounts.map((account) {
                     // Calculate this month's activity from transactions
@@ -187,18 +137,18 @@ class AccountsScreen extends ConsumerWidget {
                       data: (txs) {
                         final now = DateTime.now();
                         final monthAgo = DateTime(now.year, now.month, 1);
-                        final accountTxs = txs.where((tx) => 
+                        final accountTxs = txs.where((tx) =>
                           tx.sender == account.sender &&
                           DateTime.parse(tx.occurredAt).isAfter(monthAgo)
                         ).toList();
-                        
+
                         final totalAmount = accountTxs.fold(0.0, (sum, tx) => sum + tx.amount);
                         return totalAmount > 0 ? '+${currencyFormat.format(totalAmount)}' : currencyFormat.format(0);
                       },
                       loading: () => '...',
                       error: (_, __) => 'N/A',
                     );
-                    
+
                     return Column(
                       children: [
                         _buildAccountCard(
@@ -214,166 +164,80 @@ class AccountsScreen extends ConsumerWidget {
                           transactions: account.transactionCount,
                           isActive: true,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.l),
                       ],
                     );
                   }).toList(),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Text('Error loading accounts'),
+              error: (error, __) => AppErrorState(
+                title: "Couldn't load accounts",
+                message: '$error',
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
 
             // Connect More Accounts Section
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(AppSpacing.s),
                         decoration: BoxDecoration(
-                          color: Colors.cyan.shade50,
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.accentSoft,
+                          borderRadius: BorderRadius.circular(AppRadii.s),
                         ),
-                        child: const Icon(Icons.add_circle_outline, color: Colors.cyan),
+                        child: const Icon(Icons.add_circle_outline, color: AppColors.accent),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
+                      const SizedBox(width: AppSpacing.m),
+                      Expanded(
                         child: Text(
                           'Connect More Accounts',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
+                          style: theme.textTheme.titleMedium,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
+                  const SizedBox(height: AppSpacing.m),
+                  Text(
                     'Get a complete picture of your finances by connecting all your accounts. We support banks, mobile money, and more.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      height: 1.4,
-                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.l),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () => _showConnectBankDialog(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                       child: const Text('Connect Bank Account'),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.s),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () => _showConnectMobileMoneyDialog(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                       child: const Text('Add Mobile Money'),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.s),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () => _showAddCashAccountDialog(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                       child: const Text('Add Cash Account'),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    required String subtitle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.black45,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ),
     );
   }
@@ -391,107 +255,87 @@ class AccountsScreen extends ConsumerWidget {
     required int transactions,
     required bool isActive,
   }) {
+    final t = context.theming;
+    final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.m),
                 decoration: BoxDecoration(
-                  color: Colors.cyan.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.accentSoft,
+                  borderRadius: BorderRadius.circular(AppRadii.m),
                 ),
                 child: Icon(
-                  accountType == 'Bank' 
-                      ? Icons.account_balance 
+                  accountType == 'Bank'
+                      ? Icons.account_balance
                       : accountType == 'Mobile Money'
                           ? Icons.phone_android
                           : Icons.account_balance_wallet,
-                  color: Colors.cyan,
+                  color: AppColors.accent,
                   size: 24,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.m),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       bankName,
-                      style: const TextStyle(
-                        fontSize: 15,
+                      style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.xxs),
                     Text(
                       '$accountType • $accountSubtype',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+                      style: theme.textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
                 decoration: BoxDecoration(
-                  color: isActive ? Colors.green.shade50 : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(4),
+                  color: isActive
+                      ? AppColors.success.withValues(alpha: 0.16)
+                      : t.surfaceElevated,
+                  borderRadius: BorderRadius.circular(AppRadii.xs),
                 ),
                 child: Text(
                   'Active',
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.green : Colors.grey,
+                    color: isActive ? AppColors.success : t.textMuted,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.l),
+          Container(height: 1, color: t.border),
+          const SizedBox(height: AppSpacing.l),
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Current Balance',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+                      style: theme.textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       currencyFormat.format(balance),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                      style: theme.textTheme.titleLarge,
                     ),
                   ],
                 ),
@@ -500,20 +344,16 @@ class AccountsScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'This Month',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+                      style: theme.textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       thisMonth,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Colors.green,
+                        color: AppColors.success,
                       ),
                     ),
                   ],
@@ -523,20 +363,15 @@ class AccountsScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Transactions',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+                      style: theme.textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       '$transactions',
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Colors.black87,
                       ),
                     ),
                   ],
@@ -545,30 +380,24 @@ class AccountsScreen extends ConsumerWidget {
             ],
           ),
           if (lastSynced != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.m),
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: Colors.black45),
-                const SizedBox(width: 4),
+                Icon(Icons.access_time, size: 14, color: t.textMuted),
+                const SizedBox(width: AppSpacing.xs),
                 Text(
                   'Last synced: $lastSynced',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black45,
-                  ),
+                  style: theme.textTheme.labelSmall?.copyWith(color: t.textMuted),
                 ),
               ],
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.m),
           Row(
             children: [
               Expanded(
                 child: TextButton(
-                  onPressed: () => context.go('/transactions'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.cyan,
-                  ),
+                  onPressed: () => context.goShellRoute('/transactions'),
                   child: const Text('View Transactions'),
                 ),
               ),
@@ -576,14 +405,11 @@ class AccountsScreen extends ConsumerWidget {
                 onPressed: () => _syncAccount(context, ref, bankName),
                 icon: const Icon(Icons.sync, size: 16),
                 label: const Text('Sync'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.cyan,
-                ),
               ),
               TextButton(
                 onPressed: () => _showAccountDetails(context, bankName, accountNumber, balance, transactions),
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.black54,
+                  foregroundColor: t.textSecondary,
                 ),
                 child: const Text('Details'),
               ),
@@ -593,11 +419,11 @@ class AccountsScreen extends ConsumerWidget {
       ),
     );
   }
-  
+
   String _formatLastSync(DateTime lastSync) {
     final now = DateTime.now();
     final difference = now.difference(lastSync);
-    
+
     if (difference.inMinutes < 1) {
       return 'Just now';
     } else if (difference.inHours < 1) {
@@ -612,23 +438,22 @@ class AccountsScreen extends ConsumerWidget {
       return DateFormat('MMM d').format(lastSync);
     }
   }
-  
+
   void _syncAccount(BuildContext context, WidgetRef ref, String bankName) {
     // Refresh transactions provider to sync
     ref.invalidate(parsedTransactionsProvider);
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Syncing $bankName...'),
-        backgroundColor: Colors.cyan,
         duration: const Duration(seconds: 2),
       ),
     );
   }
-  
+
   void _showAccountDetails(BuildContext context, String bankName, String accountNumber, double balance, int transactions) {
     final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 2);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -637,13 +462,13 @@ class AccountsScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDetailRow('Account', accountNumber),
-            const SizedBox(height: 12),
-            _buildDetailRow('Balance', currencyFormat.format(balance)),
-            const SizedBox(height: 12),
-            _buildDetailRow('Transactions', '$transactions'),
-            const SizedBox(height: 12),
-            _buildDetailRow('Status', 'Active'),
+            _buildDetailRow(context, 'Account', accountNumber),
+            const SizedBox(height: AppSpacing.m),
+            _buildDetailRow(context, 'Balance', currencyFormat.format(balance)),
+            const SizedBox(height: AppSpacing.m),
+            _buildDetailRow(context, 'Transactions', '$transactions'),
+            const SizedBox(height: AppSpacing.m),
+            _buildDetailRow(context, 'Status', 'Active'),
           ],
         ),
         actions: [
@@ -655,29 +480,30 @@ class AccountsScreen extends ConsumerWidget {
       ),
     );
   }
-  
-  Widget _buildDetailRow(String label, String value) {
+
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
+    final t = context.theming;
+    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.w600,
-            color: Colors.black54,
+            color: t.textSecondary,
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
+          style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
           ),
         ),
       ],
     );
   }
-  
+
   // Show connect bank dialog
   void _showConnectBankDialog(BuildContext context) {
     showDialog(
@@ -692,29 +518,29 @@ class AccountsScreen extends ConsumerWidget {
               'How to connect your bank account:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.m),
             const Text('1. Enable SMS permissions in Settings'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s),
             const Text('2. Receive transaction SMS from your bank'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s),
             const Text('3. App automatically detects and adds your bank'),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.l),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.m),
               decoration: BoxDecoration(
-                color: Colors.cyan.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.accentSoft,
+                borderRadius: BorderRadius.circular(AppRadii.s),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.cyan, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.info_outline, color: AppColors.accent, size: 20),
+                  SizedBox(width: AppSpacing.s),
                   Expanded(
                     child: Text(
                       'Supported: CBE, Telebirr, Awash Bank, M-PESA, and more!',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.cyan.shade900,
+                        color: AppColors.accent,
                       ),
                     ),
                   ),
@@ -734,16 +560,13 @@ class AccountsScreen extends ConsumerWidget {
               // Navigate to settings to enable SMS permissions
               context.go('/settings');
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyan,
-            ),
             child: const Text('Go to Settings'),
           ),
         ],
       ),
     );
   }
-  
+
   // Show connect mobile money dialog
   void _showConnectMobileMoneyDialog(BuildContext context) {
     showDialog(
@@ -758,29 +581,29 @@ class AccountsScreen extends ConsumerWidget {
               'How to add mobile money accounts:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.m),
             const Text('1. Receive transaction SMS from mobile money provider'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s),
             const Text('2. App automatically detects transactions'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.s),
             const Text('3. Account appears here automatically'),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.l),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.m),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.success.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(AppRadii.s),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  Icon(Icons.phone_android, color: Colors.green, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.phone_android, color: AppColors.success, size: 20),
+                  SizedBox(width: AppSpacing.s),
                   Expanded(
                     child: Text(
                       'Supported: Telebirr, M-PESA, HelloCash, and more!',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.green.shade900,
+                        color: AppColors.success,
                       ),
                     ),
                   ),
@@ -798,7 +621,7 @@ class AccountsScreen extends ConsumerWidget {
       ),
     );
   }
-  
+
   // Show add cash account dialog
   void _showAddCashAccountDialog(BuildContext context) {
     showDialog(
@@ -813,25 +636,25 @@ class AccountsScreen extends ConsumerWidget {
               'Manual cash account tracking:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.m),
             const Text('Track your physical cash with manual entries.'),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.l),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.m),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.warning.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(AppRadii.s),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  Icon(Icons.construction, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.construction, color: AppColors.warning, size: 20),
+                  SizedBox(width: AppSpacing.s),
                   Expanded(
                     child: Text(
                       'This feature is coming soon! You\'ll be able to manually track cash transactions.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.orange.shade900,
+                        color: AppColors.warning,
                       ),
                     ),
                   ),

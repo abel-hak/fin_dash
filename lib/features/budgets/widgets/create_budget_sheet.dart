@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:sms_transaction_app/core/tokens.dart';
 import 'package:sms_transaction_app/data/models/budget.dart';
 import 'package:sms_transaction_app/services/providers.dart';
 
@@ -15,10 +15,10 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _limitController = TextEditingController();
-  
+
   String _selectedCategory = 'Food & Dining';
   String _selectedPeriod = 'Monthly';
-  
+
   final List<String> _categories = [
     'Food & Dining',
     'Transportation',
@@ -29,7 +29,7 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
     'Transfer',
     'Other',
   ];
-  
+
   final List<String> _periods = ['Weekly', 'Monthly', 'Yearly'];
 
   @override
@@ -42,22 +42,21 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
   Future<void> _saveBudget() async {
     if (_formKey.currentState!.validate()) {
       final db = ref.read(databaseHelperProvider);
-      
+
       // Create budget object
-      final now = DateTime.now();
       final budget = Budget.monthly(
         name: _nameController.text,
         category: _selectedCategory,
         limit: double.parse(_limitController.text),
         spent: 0,
       );
-      
+
       // Save to database
       await db.insertBudget(budget.toMap());
-      
+
       // Refresh budgets provider
       ref.invalidate(budgetsProvider);
-      
+
       if (mounted) {
         Navigator.pop(context, true);
       }
@@ -66,18 +65,20 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: 'ETB ', decimalDigits: 0);
-    
+    final theme = Theme.of(context);
+    final t = context.theming;
+
     return Container(
+      width: double.infinity,
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Form(
           key: _formKey,
           child: Column(
@@ -88,22 +89,18 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.m),
                     decoration: BoxDecoration(
-                      color: Colors.cyan.shade50,
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(AppRadii.m),
                     ),
-                    child: const Icon(Icons.pie_chart, color: Colors.cyan),
+                    child: const Icon(Icons.pie_chart, color: AppColors.accent),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                  const SizedBox(width: AppSpacing.m),
+                  Expanded(
                     child: Text(
                       'Create Budget',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
                   IconButton(
@@ -112,27 +109,18 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              
+              const SizedBox(height: AppSpacing.xxl),
+
               // Budget Name
-              const Text(
+              Text(
                 'Budget Name',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               TextFormField(
                 controller: _nameController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'e.g., Monthly Food Budget',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -141,27 +129,16 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: AppSpacing.l),
+
               // Category
-              const Text(
+              Text(
                 'Category',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
                 items: _categories.map((category) {
                   return DropdownMenuItem(
                     value: category,
@@ -174,29 +151,20 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
                   });
                 },
               ),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: AppSpacing.l),
+
               // Budget Limit
-              const Text(
+              Text(
                 'Budget Limit',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               TextFormField(
                 controller: _limitController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: '0',
                   prefixText: 'ETB ',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -208,27 +176,16 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              
+              const SizedBox(height: AppSpacing.l),
+
               // Period
-              const Text(
+              Text(
                 'Period',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
               DropdownButtonFormField<String>(
                 value: _selectedPeriod,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
                 items: _periods.map((period) {
                   return DropdownMenuItem(
                     value: period,
@@ -241,20 +198,15 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
                   });
                 },
               ),
-              const SizedBox(height: 24),
-              
+              const SizedBox(height: AppSpacing.xxl),
+
               // Create Button
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _saveBudget,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyan,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
                   ),
                   child: const Text(
                     'Create Budget',
@@ -265,7 +217,7 @@ class _CreateBudgetSheetState extends ConsumerState<CreateBudgetSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.s),
             ],
           ),
         ),

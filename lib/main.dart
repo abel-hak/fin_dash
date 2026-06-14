@@ -103,16 +103,20 @@ class _SmsTransactionAppState extends ConsumerState<SmsTransactionApp> {
   }
 }
 
+// Root navigator key — passed to GoRouter and used as parentNavigatorKey for
+// routes that must render above the bottom-nav shell (review, manual-entry).
+final _rootNavKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+
 GoRouter _buildRouter(WidgetRef ref) {
   final authNotifier = _AuthRefreshNotifier(ref);
 
-  final shellKey = GlobalKey<NavigatorState>();
-  final homeNavKey = GlobalKey<NavigatorState>();
-  final inboxNavKey = GlobalKey<NavigatorState>();
-  final activityNavKey = GlobalKey<NavigatorState>();
-  final moreNavKey = GlobalKey<NavigatorState>();
+  final homeNavKey = GlobalKey<NavigatorState>(debugLabel: 'home');
+  final inboxNavKey = GlobalKey<NavigatorState>(debugLabel: 'inbox');
+  final activityNavKey = GlobalKey<NavigatorState>(debugLabel: 'activity');
+  final moreNavKey = GlobalKey<NavigatorState>(debugLabel: 'more');
 
   return GoRouter(
+    navigatorKey: _rootNavKey,
     initialLocation: '/login',
     refreshListenable: authNotifier,
     redirect: (BuildContext context, GoRouterState state) {
@@ -143,19 +147,37 @@ GoRouter _buildRouter(WidgetRef ref) {
         path: '/consent',
         builder: (_, __) => const ConsentScreen(),
       ),
+      // These routes use _rootNavKey so they render full-screen above the
+      // bottom-nav shell — the shell's bottom bar disappears while on them.
       GoRoute(
         path: '/review/:id',
-        parentNavigatorKey: shellKey,
+        parentNavigatorKey: _rootNavKey,
         builder: (_, state) =>
             ReviewScreen(transactionId: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         path: '/manual-entry',
-        parentNavigatorKey: shellKey,
+        parentNavigatorKey: _rootNavKey,
         builder: (_, __) => const ManualEntryScreen(),
       ),
+      // Legacy top-level paths → nested under /more (keeps shell branch stable).
+      GoRoute(
+        path: '/budgets',
+        redirect: (_, __) => '/more/budgets',
+      ),
+      GoRoute(
+        path: '/goals',
+        redirect: (_, __) => '/more/goals',
+      ),
+      GoRoute(
+        path: '/accounts',
+        redirect: (_, __) => '/more/accounts',
+      ),
+      GoRoute(
+        path: '/settings',
+        redirect: (_, __) => '/more/settings',
+      ),
       StatefulShellRoute.indexedStack(
-        parentNavigatorKey: shellKey,
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
         branches: [
@@ -165,7 +187,10 @@ GoRouter _buildRouter(WidgetRef ref) {
             routes: [
               GoRoute(
                 path: '/dashboard',
-                builder: (_, __) => const DashboardScreen(),
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const DashboardScreen(),
+                ),
               ),
             ],
           ),
@@ -175,7 +200,10 @@ GoRouter _buildRouter(WidgetRef ref) {
             routes: [
               GoRoute(
                 path: '/inbox',
-                builder: (_, __) => const InboxScreen(),
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const InboxScreen(),
+                ),
               ),
             ],
           ),
@@ -185,53 +213,55 @@ GoRouter _buildRouter(WidgetRef ref) {
             routes: [
               GoRoute(
                 path: '/transactions',
-                builder: (_, __) => const TransactionsScreen(),
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const TransactionsScreen(),
+                ),
               ),
             ],
           ),
-          // Tab 3: More (sub-routes preserve drawer compatibility for now)
+          // Tab 3: More — budget/goals/accounts/settings as sub-routes plus
+          // legacy top-level paths so existing `context.go('/budgets')` calls
+          // keep working without a screen-by-screen rewrite.
           StatefulShellBranch(
             navigatorKey: moreNavKey,
             routes: [
               GoRoute(
                 path: '/more',
-                builder: (_, __) => const MoreScreen(),
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const MoreScreen(),
+                ),
                 routes: [
                   GoRoute(
                     path: 'budgets',
-                    builder: (_, __) => const BudgetsScreen(),
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const BudgetsScreen(),
+                    ),
                   ),
                   GoRoute(
                     path: 'goals',
-                    builder: (_, __) => const GoalsScreen(),
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const GoalsScreen(),
+                    ),
                   ),
                   GoRoute(
                     path: 'accounts',
-                    builder: (_, __) => const AccountsScreen(),
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const AccountsScreen(),
+                    ),
                   ),
                   GoRoute(
                     path: 'settings',
-                    builder: (_, __) => const SettingsScreen(),
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const SettingsScreen(),
+                    ),
                   ),
                 ],
-              ),
-              // Legacy top-level routes still resolve so existing drawer
-              // links keep working without a screen-by-screen rewrite.
-              GoRoute(
-                path: '/budgets',
-                builder: (_, __) => const BudgetsScreen(),
-              ),
-              GoRoute(
-                path: '/goals',
-                builder: (_, __) => const GoalsScreen(),
-              ),
-              GoRoute(
-                path: '/accounts',
-                builder: (_, __) => const AccountsScreen(),
-              ),
-              GoRoute(
-                path: '/settings',
-                builder: (_, __) => const SettingsScreen(),
               ),
             ],
           ),

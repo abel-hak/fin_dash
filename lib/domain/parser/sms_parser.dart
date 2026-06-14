@@ -1,10 +1,9 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sms_transaction_app/core/logger.dart';
 import 'package:sms_transaction_app/data/models/parsed_tx.dart';
 import 'package:sms_transaction_app/domain/templates/template_model.dart';
+import 'package:sms_transaction_app/domain/transaction_rules.dart';
 import 'package:sms_transaction_app/domain/parser/general_sms_parser.dart';
 import 'package:sms_transaction_app/domain/parser/ai_sms_parser.dart';
 import 'package:sms_transaction_app/services/receipt_scraper_service.dart';
@@ -360,26 +359,15 @@ class SmsParser {
     required String merchant,
     String? accountAlias,
   }) {
-    // Round timestamp to the nearest minute to allow for small time differences
-    final roundedTimestamp = DateTime(
-      timestamp.year,
-      timestamp.month,
-      timestamp.day,
-      timestamp.hour,
-      timestamp.minute,
+    // Delegates to the shared implementation so the review screen can recompute
+    // an identical fingerprint after the user edits a transaction.
+    return TransactionRules.fingerprint(
+      userId: userId,
+      amount: amount,
+      timestamp: timestamp,
+      merchant: merchant,
+      accountAlias: accountAlias,
     );
-    
-    // Normalize merchant name (lowercase, trim spaces)
-    final normalizedMerchant = merchant.toLowerCase().trim();
-    
-    // Create a string to hash
-    final dataToHash = '$userId|${amount.abs()}|$roundedTimestamp|$normalizedMerchant|${accountAlias ?? ""}';
-    
-    // Create SHA-256 hash
-    final bytes = utf8.encode(dataToHash);
-    final digest = sha256.convert(bytes);
-    
-    return digest.toString();
   }
 }
 
